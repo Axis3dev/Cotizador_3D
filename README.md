@@ -1,16 +1,15 @@
 # Cotizador 3D
 
-Aplicación de escritorio en Python (Tkinter) para generar cotizaciones rápidas de impresiones 3D en modos **FDM** y **Resina** a partir de archivos STL.
+Aplicación de escritorio escrita en Python 3.11+ (Tkinter) para replicar el flujo de cotización del archivo de Excel utilizado en Axis3. Permite registrar impresoras FDM y de resina, gestionar materiales y calcular una propuesta económica con merma, riesgo, ganancia e IVA opcional.
 
-## Características
+## Características principales
 
-- Carga de archivos `.stl` mediante `trimesh` con cálculo de volumen, bounding box y verificación de malla cerrada.
-- Pestañas dedicadas para configuración de **FDM** y **Resina** con parámetros editables y validación numérica.
-- Estimaciones heurísticas de volumen usado, masa de material, tiempo de impresión y costos asociados (material, electricidad, depreciación, mano de obra).
-- Gestión de materiales y perfiles con persistencia en `config.json` y carpeta `presets/`.
-- Exportación de la cotización a **PDF** y **CSV**, además de copia rápida al portapapeles.
-- Costos financieros (margen, IVA) totalmente configurables.
-- Proyecto modular y documentado listo para ejecutar con `python app.py`.
+- Carga opcional de archivos `.stl` mediante `trimesh` con cálculo de volumen, dimensiones y advertencia si la malla no está cerrada.
+- Catálogo persistente de impresoras (filamento/resina) con costo del equipo, vida útil y potencia eléctrica para incluir depreciación y consumo energético reales.
+- Control de materiales con densidad y precio por kilogramo para estimar el costo directo del insumo **sin margen adicional**.
+- Fórmulas alineadas con la hoja de cálculo original: subtotal base (material, energía, depreciación, mano de obra, STL, extras) seguido de merma %, riesgo %, ganancia % e IVA %.
+- Configuración global editable (precio kWh, costo hora-hombre, tiempos de postproceso por defecto y porcentajes) almacenada en `config.json`.
+- Exportación de la cotización a PDF y CSV incluyendo nombre, correo y celular del cliente, así como notas y condiciones.
 
 ## Requisitos
 
@@ -24,7 +23,7 @@ Aplicación de escritorio en Python (Tkinter) para generar cotizaciones rápidas
 ## Instalación
 
 1. Clona o descarga este repositorio.
-2. (Opcional pero recomendado) Crea y activa un entorno virtual:
+2. (Opcional) Crea y activa un entorno virtual:
 
    ```bash
    python -m venv .venv
@@ -43,44 +42,76 @@ Aplicación de escritorio en Python (Tkinter) para generar cotizaciones rápidas
    python app.py
    ```
 
-## Uso
+## Uso de la interfaz
 
-1. En la pestaña **Archivo STL**, presiona **"Cargar STL"** y selecciona el modelo a cotizar. El programa mostrará volumen, dimensiones y advertencias si la malla no es cerrada.
-2. Ajusta los parámetros en las pestañas **FDM** o **Resina** según el tipo de impresión. Puedes guardar materiales y presets personalizados.
-3. Configura los costos generales (electricidad, depreciación, mano de obra) en la pestaña **Costos & Finanzas**. Estos valores se guardan en `config.json`.
-4. En **Resumen & Cotización** selecciona el modo (FDM o Resina), ingresa datos del cliente y pulsa **"Calcular cotización"**. Se mostrará el desglose de tiempo y costos.
-5. Exporta el resultado a PDF o CSV, o copia el resumen al portapapeles.
+La ventana principal se organiza en cinco pestañas:
 
-## Configuración y presets
+1. **Proyecto**: selecciona el tipo de impresión (filamento o resina) y la impresora correspondiente. Ingresa masa en gramos, horas de impresión, minutos de mano de obra, horas de supervisión, costo del STL y extras. Desde aquí puedes cargar un STL para obtener volumen y dimensiones, y estimar la masa según el material activo.
+2. **Material**: administra el catálogo de materiales (densidad g/cm³ y precio MXN/kg). Los cambios se guardan de forma persistente en `config.json`.
+3. **Costos & Porcentajes**: establece el precio del kWh, costo hora-hombre, tiempos por defecto y porcentajes de merma, riesgo, ganancia e IVA (los campos aceptan valores en %). Estos valores alimentan directamente las fórmulas del cálculo.
+4. **Impresoras**: registra, edita o elimina impresoras diferenciando entre filamento y resina. Los datos alimentan automáticamente la depreciación y el consumo eléctrico.
+5. **Cliente & Exportar**: captura nombre, correo y celular del cliente, añade notas y genera el desglose completo. Desde esta pestaña puedes exportar a PDF o CSV.
 
-- El archivo `config.json` contiene los valores por defecto, materiales y tarifas. Se actualiza automáticamente al guardar cambios desde la interfaz.
-- La carpeta `presets/` almacena perfiles personalizados en formato JSON. Puedes crear varios para diferentes materiales o calidades (ej. `PLA Calidad`, `Resina 0.05 mm`).
+## Flujo de cálculo
 
-## Limitaciones
+El motor en `pricing/calc.py` aplica las siguientes fórmulas:
 
-- Los cálculos son heurísticos y aproximados; no sustituyen a un slicer profesional. Factores como aceleraciones, retracciones o soportes complejos no se modelan con precisión.
-- Se asume que las unidades del STL están en milímetros.
-- La velocidad real de impresión depende de la máquina, por lo que se recomienda ajustar los parámetros a valores medidos.
+```
+subtotal_base = material + energia + depreciacion + mano_obra + costo_stl + extras
+subtotal_merma = subtotal_base * (1 + merma)
+subtotal_riesgo = subtotal_merma * (1 + riesgo)
+total_sin_iva = subtotal_riesgo * (1 + ganancia)
+total_con_iva = total_sin_iva * (1 + iva)
+```
 
-## Compatibilidad
+La utilidad se controla mediante el porcentaje de **ganancia** y la mano de obra; el costo del material nunca incorpora margen adicional.
 
-- La aplicación utiliza Tkinter (incluido en Python) y funciona en Windows 10/11, macOS y Linux.
-- No requiere acceso a internet ni dependencias nativas adicionales.
+## Configuración
+
+`config.json` contiene moneda, costos globales, porcentajes, materiales e impresoras. Puede editarse manualmente o mediante la interfaz. Un ejemplo del contenido generado por defecto es:
+
+```json
+{
+  "moneda": "MXN",
+  "electricidad": {"kwh_precio": 3.0},
+  "mano_obra": {"costo_hora": 120.0, "post_min": 20.0, "supervision_h": 0.0},
+  "porcentajes": {"merma": 0.02, "riesgo": 0.05, "ganancia": 0.3, "iva": 0.16},
+  "materiales": {
+    "PLA": {"densidad_g_cm3": 1.24, "precio_kg": 360.0},
+    "PETG": {"densidad_g_cm3": 1.27, "precio_kg": 420.0}
+  },
+  "impresoras": [
+    {"nombre": "Bambu Lab A1", "tipo": "filamento", "costo_equipo": 16000.0, "vida_util_horas": 5000.0, "potencia_w": 220.0},
+    {"nombre": "Elegoo Mars 3", "tipo": "resina", "costo_equipo": 9000.0, "vida_util_horas": 4000.0, "potencia_w": 120.0}
+  ]
+}
+```
 
 ## Estructura del proyecto
 
 ```
-app.py                 # Punto de entrada de la GUI
-models/geometry.py     # Carga y métricas del STL
-pricing/               # Lógica de estimación de costos (FDM, Resina, común)
-storage/config.py      # Gestión de config.json y presets
+app.py                 # Ventana principal y lógica de la GUI
+config/storage.py      # Lectura/escritura de config.json
+models/geometry.py     # Carga y métricas de archivos STL
+models/printers.py     # CRUD de impresoras persistentes
+pricing/calc.py        # Fórmulas de costos y utilidades
 export/                # Exportación a PDF y CSV
-ui/components/         # Widgets reutilizables
-config.json            # Valores por defecto (se puede editar manualmente)
-requirements.txt       # Dependencias del proyecto
-presets/               # Carpeta para perfiles guardados
+ui/components/         # Widgets reutilizables (entries etiquetados, tooltips)
+requirements.txt       # Dependencias
 ```
 
-## Contribuciones
+## Pruebas
 
-Si deseas mejorar las heurísticas o añadir nuevos modos de impresión, envía un PR o ajusta el código siguiendo la estructura modular existente. ¡Felices impresiones!
+Ejecuta los tests unitarios del módulo de costos con:
+
+```bash
+python -m unittest
+```
+
+## Limitaciones
+
+- Los cálculos siguen una aproximación similar a la hoja de Excel; no sustituyen el slicing real ni contemplan soportes complejos.
+- Se asume que los STL están en milímetros y que la densidad declarada corresponde al material efectivamente usado (infill + cascarón).
+- Si la malla no está cerrada, el volumen reportado puede ser impreciso; la aplicación muestra una advertencia pero permite continuar.
+
+¡Felices impresiones!
