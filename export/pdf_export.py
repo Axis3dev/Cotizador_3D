@@ -8,10 +8,10 @@ from typing import Any, Dict, Iterable
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
-from reportlab.pdfgen import canvas
+from reportlab.pdfgen.canvas import Canvas
 
 
-def _draw_text_block(pdf: canvas.Canvas, lines: Iterable[str], x: float, y: float, line_height: float) -> float:
+def _draw_text_block(pdf: Canvas, lines: Iterable[str], x: float, y: float, line_height: float) -> float:
     """Draw ``lines`` starting at ``x``, ``y`` returning the final y position."""
 
     current_y = y
@@ -25,7 +25,7 @@ def export_quote_to_pdf(file_path: str, data: Dict[str, Any]) -> Path:
     """Create a PDF file containing the quotation summary."""
 
     path = Path(file_path)
-    pdf = canvas.Canvas(str(path), pagesize=letter)
+    pdf = Canvas(str(path), pagesize=letter)
     _, height = letter
     margin = 20 * mm
 

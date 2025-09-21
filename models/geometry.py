@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
-from typing import Tuple
+from typing import TYPE_CHECKING
 
-import trimesh
+if TYPE_CHECKING:  # pragma: no cover - typing assistance only
+    import trimesh
 
 
 @dataclass
@@ -18,7 +20,7 @@ class MeshInfo:
     volume_mm3: float
     volume_cm3: float
     surface_area_mm2: float
-    bbox_dimensions_mm: Tuple[float, float, float]
+    bbox_dimensions_mm: tuple[float, float, float]
     is_watertight: bool
     triangle_count: int
 
@@ -43,6 +45,7 @@ def load_mesh(file_path: str) -> MeshInfo:
         Dataclass with volumetric information and bounding box dimensions.
     """
 
+    trimesh = import_module("trimesh")
     mesh = trimesh.load(file_path, force="mesh")
 
     if isinstance(mesh, list):
