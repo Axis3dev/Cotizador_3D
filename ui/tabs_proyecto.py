@@ -339,6 +339,9 @@ class ProjectTab(ttk.Frame):
         action_frame = ttk.Frame(self)
         action_frame.grid(row=4, column=0, sticky="e", padx=10, pady=(0, 10))
         ttk.Button(action_frame, text="Calcular cotización", command=self.on_calculate).pack(side=tk.RIGHT)
+        ttk.Button(action_frame, text="Configuraciones", command=lambda: self.open_config_callback(None)).pack(
+            side=tk.LEFT, padx=4
+        )
 
     # ------------------------------------------------------------------
     def refresh_materials(self) -> None:

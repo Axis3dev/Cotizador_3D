@@ -8,6 +8,8 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 from typing import Dict, List, Optional
 
+from tkcalendar import DateEntry
+
 from export.excel_accounting import export_accounting_excel
 from export.pdf_accounting import export_accounting_pdf
 from models.pedido import Pedido
@@ -40,14 +42,24 @@ class AccountingTab(ttk.Frame):
         filter_frame.pack(fill=tk.X, padx=8, pady=4)
 
         ttk.Label(filter_frame, text="Tipo:").pack(side=tk.LEFT)
-        tipo_combo = ttk.Combobox(filter_frame, textvariable=self.tipo_var, state="readonly", values=["todos", "filamento", "resina"], width=12)
+        tipo_combo = ttk.Combobox(
+            filter_frame,
+            textvariable=self.tipo_var,
+            state="readonly",
+            values=["todos", "filamento", "resina"],
+            width=12,
+        )
         tipo_combo.pack(side=tk.LEFT, padx=4)
         tipo_combo.bind("<<ComboboxSelected>>", lambda _: self.update_summary())
 
-        ttk.Label(filter_frame, text="Desde (AAAA-MM-DD):").pack(side=tk.LEFT, padx=(8, 2))
-        ttk.Entry(filter_frame, textvariable=self.fecha_inicio_var, width=12).pack(side=tk.LEFT)
+        ttk.Label(filter_frame, text="Desde:").pack(side=tk.LEFT, padx=(8, 2))
+        self.fecha_inicio_entry = DateEntry(filter_frame, textvariable=self.fecha_inicio_var, width=12, date_pattern="yyyy-mm-dd")
+        self.fecha_inicio_entry.pack(side=tk.LEFT)
+        self.fecha_inicio_entry.delete(0, tk.END)
         ttk.Label(filter_frame, text="Hasta:").pack(side=tk.LEFT, padx=(8, 2))
-        ttk.Entry(filter_frame, textvariable=self.fecha_fin_var, width=12).pack(side=tk.LEFT)
+        self.fecha_fin_entry = DateEntry(filter_frame, textvariable=self.fecha_fin_var, width=12, date_pattern="yyyy-mm-dd")
+        self.fecha_fin_entry.pack(side=tk.LEFT)
+        self.fecha_fin_entry.delete(0, tk.END)
         ttk.Button(filter_frame, text="Aplicar", command=self.update_summary).pack(side=tk.LEFT, padx=6)
 
         columns = ("periodo", "ingresos", "costos", "gastos", "ganancia", "iva")
@@ -70,6 +82,10 @@ class AccountingTab(ttk.Frame):
         inicio = self._parse_date(self.fecha_inicio_var.get())
         fin = self._parse_date(self.fecha_fin_var.get())
         tipo = self.tipo_var.get()
+
+        if inicio and fin and inicio > fin:
+            messagebox.showerror("Rango inválido", "La fecha inicial no puede ser mayor que la final.", parent=self)
+            return
 
         grouped: Dict[str, Dict[str, float]] = {}
         for pedido in self.orders:
@@ -128,7 +144,8 @@ class AccountingTab(ttk.Frame):
             messagebox.showinfo("Exportación", "No hay datos para exportar.", parent=self)
             return
         filters = self._filters_dict()
-        path = export_accounting_excel(self.summary, filters, Path("reportes"))
+        identity = self.config_store.get_identity()
+        path = export_accounting_excel(self.summary, filters, identity, Path("reportes"))
         messagebox.showinfo("Exportación", f"Archivo generado en {path}", parent=self)
 
     def _filters_dict(self) -> Dict[str, str]:

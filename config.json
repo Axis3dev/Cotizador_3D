@@ -50,7 +50,7 @@
     "rfc": "",
     "direccion": "",
     "telefono": "",
-    "logo": "assets/logo_negocio.png",
+    "logo_path": "assets/logo_negocio.png",
     "politicas": "Válida 12 días a partir de la fecha.\nAnticipo del 50% para iniciar la producción."
   },
   "integraciones": {

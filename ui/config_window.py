@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
 from models.impresora import Impresora
 from models.material import Material
 from storage.config_store import ConfigStore
+
+from PIL import Image, ImageTk
 
 
 class ConfigWindow(tk.Toplevel):
@@ -60,10 +63,12 @@ class ConfigWindow(tk.Toplevel):
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
-        columns = ("densidad", "precio")
+        columns = ("nombre", "densidad", "precio")
         self.material_tree = ttk.Treeview(frame, columns=columns, show="headings")
+        self.material_tree.heading("nombre", text="Nombre")
         self.material_tree.heading("densidad", text="Densidad g/cm³")
         self.material_tree.heading("precio", text="Precio kg")
+        self.material_tree.column("nombre", width=180, anchor="w")
         self.material_tree.column("densidad", width=140, anchor="center")
         self.material_tree.column("precio", width=140, anchor="center")
         self.material_tree.grid(row=0, column=0, sticky="nsew")
@@ -87,8 +92,11 @@ class ConfigWindow(tk.Toplevel):
             self.material_tree.insert(
                 "",
                 tk.END,
-                values=(f"{material.densidad_g_cm3:.2f}", f"{material.precio_kg:.2f}"),
-                text=material.nombre,
+                values=(
+                    material.nombre,
+                    f"{material.densidad_g_cm3:.2f}",
+                    f"{material.precio_kg:.2f}",
+                ),
             )
 
     def _material_dialog(self, material: Optional[Material] = None) -> Optional[Material]:
@@ -119,6 +127,13 @@ class ConfigWindow(tk.Toplevel):
             except ValueError:
                 messagebox.showerror("Dato inválido", "Verifica la densidad y el precio.", parent=dialog)
                 return
+            if densidad <= 0 or precio <= 0:
+                messagebox.showerror(
+                    "Dato inválido",
+                    "La densidad y el precio deben ser mayores que cero.",
+                    parent=dialog,
+                )
+                return
             nonlocal result
             result = Material(nombre=nombre, densidad_g_cm3=densidad, precio_kg=precio)
             dialog.destroy()
@@ -131,6 +146,13 @@ class ConfigWindow(tk.Toplevel):
     def add_material(self) -> None:
         material = self._material_dialog()
         if material:
+            if self.config_store.material_exists(material.nombre):
+                messagebox.showerror(
+                    "Duplicado",
+                    "Ya existe un material con ese nombre.",
+                    parent=self,
+                )
+                return
             self.config_store.upsert_material(material)
             self.refresh_materials()
 
@@ -138,20 +160,27 @@ class ConfigWindow(tk.Toplevel):
         selection = self.material_tree.selection()
         if not selection:
             return
-        nombre = self.material_tree.item(selection[0], "text")
+        nombre = self.material_tree.item(selection[0], "values")[0]
         current = next((m for m in self.config_store.get_materials() if m.nombre == nombre), None)
         if not current:
             return
         material = self._material_dialog(current)
         if material:
-            self.config_store.upsert_material(material)
+            if material.nombre != current.nombre and self.config_store.material_exists(material.nombre):
+                messagebox.showerror(
+                    "Duplicado",
+                    "Ya existe un material con ese nombre.",
+                    parent=self,
+                )
+                return
+            self.config_store.upsert_material(material, previous_name=current.nombre)
             self.refresh_materials()
 
     def delete_material(self) -> None:
         selection = self.material_tree.selection()
         if not selection:
             return
-        nombre = self.material_tree.item(selection[0], "text")
+        nombre = self.material_tree.item(selection[0], "values")[0]
         if messagebox.askyesno("Eliminar", f"¿Eliminar el material {nombre}?", parent=self):
             self.config_store.delete_material(nombre)
             self.refresh_materials()
@@ -342,7 +371,7 @@ class ConfigWindow(tk.Toplevel):
             ("RFC", "rfc"),
             ("Dirección", "direccion"),
             ("Teléfono", "telefono"),
-            ("Logo", "logo"),
+            ("Logo", "logo_path"),
         ]
         self.identity_vars = {}
         for idx, (label, key) in enumerate(fields):
@@ -350,8 +379,9 @@ class ConfigWindow(tk.Toplevel):
             var = tk.StringVar(value=str(identity.get(key, "")))
             entry = ttk.Entry(frame, textvariable=var)
             entry.grid(row=idx, column=1, sticky="ew", padx=8, pady=4)
-            if key == "logo":
+            if key == "logo_path":
                 ttk.Button(frame, text="Buscar", command=lambda v=var: self._select_logo(v)).grid(row=idx, column=2, padx=4)
+                ttk.Button(frame, text="Probar logo", command=lambda v=var: self._preview_logo(v)).grid(row=idx, column=3, padx=4)
             self.identity_vars[key] = var
 
         ttk.Label(frame, text="Políticas:").grid(row=len(fields), column=0, sticky="nw", padx=8, pady=4)
@@ -365,7 +395,32 @@ class ConfigWindow(tk.Toplevel):
     def _select_logo(self, var: tk.StringVar) -> None:
         path = filedialog.askopenfilename(parent=self, filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
         if path:
-            var.set(path)
+            var.set(Path(path).expanduser().as_posix())
+
+    def _preview_logo(self, var: tk.StringVar) -> None:
+        path_str = var.get().strip()
+        if not path_str:
+            messagebox.showwarning("Logo", "Primero selecciona una ruta de logo.", parent=self)
+            return
+        logo_path = self.config_store.resolve_path(path_str)
+        if not logo_path.exists():
+            messagebox.showerror("Logo", f"No se encontró el archivo en {logo_path}", parent=self)
+            return
+        try:
+            image = Image.open(logo_path)
+        except Exception as exc:
+            messagebox.showerror("Logo", f"No se pudo abrir el logo: {exc}", parent=self)
+            return
+        image.thumbnail((240, 240))
+        preview = tk.Toplevel(self)
+        preview.title("Vista previa del logo")
+        preview.transient(self)
+        preview.grab_set()
+        photo = ImageTk.PhotoImage(image)
+        label = ttk.Label(preview, image=photo)
+        label.image = photo  # type: ignore[attr-defined]
+        label.pack(padx=12, pady=12)
+        ttk.Button(preview, text="Cerrar", command=preview.destroy).pack(pady=(0, 12))
 
     def save_identity(self) -> None:
         payload = {key: var.get() for key, var in self.identity_vars.items()}

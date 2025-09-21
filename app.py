@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import tkinter as tk
 from datetime import datetime
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, ttk
 from typing import Optional
+
+from tkcalendar import DateEntry
+
 from models.cotizacion import Cotizacion
 from models.pedido import Pedido
 from pricing import FinancialSettings, build_quote_breakdown, compute_piece_base
@@ -27,6 +30,10 @@ class CotizadorApp(tk.Tk):
         self.title("Cotizador 3D")
         self.geometry("1200x820")
 
+        menubar = tk.Menu(self)
+        menubar.add_command(label="Configuraciones", command=lambda: self.open_config(None))
+        self.config(menu=menubar)
+
         self.config_store = ConfigStore()
         self.clients_store = ClientsStore()
         self.quote_store = QuoteStore()
@@ -45,6 +52,7 @@ class CotizadorApp(tk.Tk):
         self.quotes_tab = QuotesTab(
             self.notebook,
             self.quote_store,
+            self.orders_store,
             on_view=self.view_quote,
             on_edit=self.edit_quote,
             on_convert=self.convert_quote_to_order,
@@ -164,24 +172,13 @@ class CotizadorApp(tk.Tk):
 
     # ------------------------------------------------------------------
     def convert_quote_to_order(self, quote: Cotizacion) -> None:
-        fecha_estimada = simpledialog.askstring(
-            "Pedido",
-            "Fecha estimada de entrega (AAAA-MM-DD):",
-            parent=self,
-        )
-        if fecha_estimada:
-            fecha_estimada = fecha_estimada.strip()
-            try:
-                datetime.fromisoformat(fecha_estimada)
-            except ValueError:
-                messagebox.showerror("Fecha inválida", "Usa el formato AAAA-MM-DD.", parent=self)
-                return
+        fecha_estimada = self._ask_fecha_estimada()
         folio = self.orders_store.generate_folio()
         pedido = Pedido(
             folio=folio,
             folio_cotizacion=quote.folio,
             fecha_creacion=datetime.utcnow().date().isoformat(),
-            fecha_estimada=fecha_estimada or None,
+            fecha_estimada=fecha_estimada,
             proyecto=quote.proyecto,
             tipo=quote.tipo,
             impresora=quote.impresora,
@@ -197,12 +194,48 @@ class CotizadorApp(tk.Tk):
         self.orders_store.save(pedido)
         self.clients_store.register_order(quote.cliente, pedido)
         messagebox.showinfo("Pedido", f"Se registró el pedido {pedido.folio}.", parent=self)
+        self.quotes_tab.refresh()
         self.orders_tab.refresh()
         self.accounting_tab.refresh()
 
     # ------------------------------------------------------------------
     def on_order_status_change(self, pedido: Pedido) -> None:
         self.accounting_tab.refresh()
+        self.quotes_tab.refresh()
+
+    # ------------------------------------------------------------------
+    def _ask_fecha_estimada(self) -> str | None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Fecha estimada de entrega")
+        dialog.transient(self)
+        dialog.grab_set()
+
+        ttk.Label(dialog, text="Selecciona la fecha estimada de entrega:").grid(row=0, column=0, columnspan=2, padx=12, pady=8)
+
+        fecha_var = tk.StringVar()
+        date_entry = DateEntry(dialog, textvariable=fecha_var, width=12, date_pattern="yyyy-mm-dd")
+        date_entry.grid(row=1, column=0, columnspan=2, padx=12, pady=4)
+
+        result: str | None = None
+
+        def aceptar() -> None:
+            nonlocal result
+            value = fecha_var.get().strip()
+            if value:
+                try:
+                    result_date = datetime.fromisoformat(value).date()
+                    result = result_date.isoformat()
+                except ValueError:
+                    messagebox.showerror("Fecha inválida", "Usa el formato AAAA-MM-DD.", parent=dialog)
+                    return
+            else:
+                result = None
+            dialog.destroy()
+
+        ttk.Button(dialog, text="Aceptar", command=aceptar).grid(row=2, column=0, padx=12, pady=8)
+        ttk.Button(dialog, text="Sin fecha", command=dialog.destroy).grid(row=2, column=1, padx=12, pady=8)
+        dialog.wait_window(dialog)
+        return result
 
 
 def main() -> None:

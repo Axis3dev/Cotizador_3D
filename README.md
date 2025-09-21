@@ -52,7 +52,7 @@ El botón **Configuraciones** (y los accesos rápidos “Administrar materiales/
 
 - **Materiales** y **Impresoras**: CRUD persistente sobre `config.json`.
 - **Costos & Porcentajes**: precio kWh, costo hora, tiempos por defecto y porcentajes expresados en %.
-- **Identidad**: nombre comercial, RFC, dirección, teléfono, logo y políticas utilizadas en el PDF.
+- **Identidad**: nombre comercial, RFC, dirección, teléfono, logo (configurable mediante `identidad.logo_path`) y políticas utilizadas en el PDF.
   - El repositorio no incluye un logo por defecto; coloca tu archivo (por ejemplo,
     `logo_negocio.png`) dentro de la carpeta `assets/` y ajusta la ruta en `config.json`.
 - **Integraciones**: credenciales SMTP y parámetros para la futura integración de WhatsApp. El envío por WhatsApp genera un archivo `.whatsapp.txt` con la información lista para conectarse a una API.

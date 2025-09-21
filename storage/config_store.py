@@ -45,7 +45,7 @@ DEFAULT_CONFIG: Dict[str, object] = {
         "rfc": "",
         "direccion": "",
         "telefono": "",
-        "logo": "assets/logo_negocio.png",
+        "logo_path": "assets/logo_negocio.png",
         "politicas": "Válida por 12 días a partir de la fecha.\nPrecios sujetos a cambios sin previo aviso.",
     },
     "integraciones": {
@@ -89,6 +89,10 @@ class ConfigStore:
             if key not in self.data:
                 self.data[key] = deepcopy(value)
                 changed = True
+        identidad = self.data.get("identidad", {})
+        if "logo_path" not in identidad and identidad.get("logo"):
+            identidad["logo_path"] = identidad.pop("logo")
+            changed = True
         if changed:
             self.save()
 
@@ -107,8 +111,15 @@ class ConfigStore:
         ]
 
     # ------------------------------------------------------------------
-    def upsert_material(self, material: Material) -> None:
+    def material_exists(self, nombre: str) -> bool:
+        materiales = self.data.get("materiales", {})
+        return nombre in materiales
+
+    # ------------------------------------------------------------------
+    def upsert_material(self, material: Material, previous_name: str | None = None) -> None:
         materiales = self.data.setdefault("materiales", {})
+        if previous_name and previous_name in materiales and previous_name != material.nombre:
+            del materiales[previous_name]
         materiales[material.nombre] = {
             "densidad_g_cm3": material.densidad_g_cm3,
             "precio_kg": material.precio_kg,
@@ -174,9 +185,16 @@ class ConfigStore:
 
     # ------------------------------------------------------------------
     def get_identity(self) -> Dict[str, object]:
-        return dict(self.data.get("identidad", {}))
+        identidad = dict(self.data.get("identidad", {}))
+        if "logo_path" not in identidad:
+            identidad["logo_path"] = identidad.get("logo", "")
+        return identidad
 
     def update_identity(self, payload: Dict[str, object]) -> None:
+        logo_path = str(payload.get("logo_path", ""))
+        if logo_path:
+            path = Path(logo_path).expanduser()
+            payload["logo_path"] = path.as_posix()
         self.data["identidad"] = payload
         self.save()
 
@@ -200,6 +218,15 @@ class ConfigStore:
     # ------------------------------------------------------------------
     def get_config_version(self) -> str:
         return str(self.data.get("version", ""))
+
+    # ------------------------------------------------------------------
+    def resolve_path(self, path_str: str) -> Path:
+        if not path_str:
+            return Path()
+        path = Path(path_str).expanduser()
+        if not path.is_absolute():
+            path = Path.cwd() / path
+        return path
 
 
 __all__ = ["ConfigStore", "DEFAULT_CONFIG", "CONFIG_PATH"]
