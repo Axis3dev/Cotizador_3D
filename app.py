@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 import tkinter as tk
 from dataclasses import asdict
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 from typing import Any, Dict, Optional
+
+# Garantiza que el directorio raíz del proyecto esté en ``sys.path`` incluso cuando
+# se ejecute el script desde ubicaciones relativas (p. ej., ``python Axis3dev/Cotizador_3D/app.py``)
+# o mediante atajos de VS Code.
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from export.csv_export import export_quote_to_csv
 from export.pdf_export import export_quote_to_pdf
