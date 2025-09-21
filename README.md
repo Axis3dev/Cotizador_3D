@@ -1,6 +1,6 @@
 # Cotizador 3D
 
-Aplicación de escritorio escrita en Python 3.11+ (Tkinter) para replicar el flujo de cotización del archivo de Excel utilizado en Axis3. Permite registrar impresoras FDM y de resina, gestionar materiales y calcular una propuesta económica con merma, riesgo, ganancia e IVA opcional.
+Aplicación de escritorio escrita en Python 3.11+ (Tkinter) para replicar el flujo de cotización del archivo de Excel utilizado en Axis3D. Permite registrar impresoras FDM y de resina, gestionar materiales y calcular una propuesta económica con merma, riesgo, ganancia e IVA opcional.
 
 ## Características principales
 
