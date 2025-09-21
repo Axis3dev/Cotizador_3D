@@ -1,0 +1,47 @@
+{
+  "moneda": "MXN",
+  "electricidad": {
+    "kwh_precio": 3.0
+  },
+  "mano_obra": {
+    "costo_hora": 120.0,
+    "post_min": 20.0,
+    "supervision_h": 0.0
+  },
+  "porcentajes": {
+    "merma": 0.02,
+    "riesgo": 0.05,
+    "ganancia": 0.3,
+    "iva": 0.16
+  },
+  "materiales": {
+    "PLA": {
+      "densidad_g_cm3": 1.24,
+      "precio_kg": 360.0
+    },
+    "PETG": {
+      "densidad_g_cm3": 1.27,
+      "precio_kg": 420.0
+    },
+    "ABS": {
+      "densidad_g_cm3": 1.04,
+      "precio_kg": 450.0
+    }
+  },
+  "impresoras": [
+    {
+      "nombre": "Bambu Lab A1",
+      "tipo": "filamento",
+      "costo_equipo": 16000.0,
+      "vida_util_horas": 5000.0,
+      "potencia_w": 220.0
+    },
+    {
+      "nombre": "Elegoo Mars 3",
+      "tipo": "resina",
+      "costo_equipo": 9000.0,
+      "vida_util_horas": 4000.0,
+      "potencia_w": 120.0
+    }
+  ]
+}
