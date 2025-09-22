@@ -384,17 +384,41 @@ class OrdersTab(ttk.Frame):
             "Liquidado",
             "Facturado",
         ]
+        stretch_columns = {"proyecto", "cliente", "impresora"}
+        left_aligned = {"proyecto", "cliente", "tipo", "impresora", "estado"}
+        custom_widths = {
+            "estado": 140,
+            "fecha": 150,
+            "estimada": 180,
+            "folio": 150,
+            "tipo": 140,
+            "impresora": 180,
+            "total": 130,
+            "estatus": 130,
+            "anticipo": 110,
+            "liquidado": 120,
+            "facturado": 120,
+        }
         for col, text in zip(columns, headings):
             tree.heading(col, text=text)
-            width = 110 if col in {"estado", "fecha", "estimada", "tipo"} else 140
-            if col in {"folio", "total", "estatus", "anticipo", "liquidado", "facturado"}:
-                width = 120
-            tree.column(col, width=width, anchor="center")
+            width = custom_widths.get(col, 160)
+            anchor = "w" if col in left_aligned else "center"
+            tree.column(
+                col,
+                width=width,
+                minwidth=width,
+                anchor=anchor,
+                stretch=col in stretch_columns,
+            )
         tree.grid(row=0, column=0, sticky="nsew")
 
-        scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar_y = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=tree.yview)
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
+        tree.configure(yscrollcommand=scrollbar_y.set)
+
+        scrollbar_x = ttk.Scrollbar(frame, orient=tk.HORIZONTAL, command=tree.xview)
+        scrollbar_x.grid(row=1, column=0, sticky="ew")
+        tree.configure(xscrollcommand=scrollbar_x.set)
 
         tree.tag_configure("completado", foreground="#15803d")
         tree.tag_configure("pendiente", foreground="#c2410c")
