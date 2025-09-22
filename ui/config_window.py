@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+import tkinter.font as tkfont
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
@@ -24,6 +25,8 @@ class ConfigWindow(tk.Toplevel):
         self.grab_set()
 
         self.config_store = config_store
+        self._bold_font = tkfont.nametofont("TkDefaultFont").copy()
+        self._bold_font.configure(weight="bold")
 
         notebook = ttk.Notebook(self)
         notebook.pack(fill=tk.BOTH, expand=True)
@@ -444,7 +447,7 @@ class ConfigWindow(tk.Toplevel):
         email_cfg = integrations.get("email", {})
         whatsapp_cfg = integrations.get("whatsapp", {})
 
-        ttk.Label(frame, text="Email (SMTP)", font=("TkDefaultFont", 10, "bold")).grid(row=0, column=0, sticky="w", padx=8, pady=4)
+        ttk.Label(frame, text="Email (SMTP)", font=self._bold_font).grid(row=0, column=0, sticky="w", padx=8, pady=4)
         email_fields = [
             ("Host", "host"),
             ("Puerto", "puerto"),
@@ -462,7 +465,7 @@ class ConfigWindow(tk.Toplevel):
             self.email_vars[key] = var
 
         separator_row = len(email_fields) + 1
-        ttk.Label(frame, text="WhatsApp", font=("TkDefaultFont", 10, "bold")).grid(row=separator_row, column=0, sticky="w", padx=8, pady=(12, 4))
+        ttk.Label(frame, text="WhatsApp", font=self._bold_font).grid(row=separator_row, column=0, sticky="w", padx=8, pady=(12, 4))
         whatsapp_fields = [
             ("Endpoint", "endpoint"),
             ("Token", "token"),

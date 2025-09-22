@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
@@ -48,13 +49,17 @@ class QuoteModal(tk.Toplevel):
         self.on_saved = on_saved
         self.saved_path: Optional[Path] = None
 
+        self._default_font = tkfont.nametofont("TkDefaultFont")
+        self._bold_font = self._default_font.copy()
+        self._bold_font.configure(weight="bold")
+
         self._build_ui()
 
     def _build_ui(self) -> None:
         header = ttk.Frame(self)
         header.pack(fill=tk.X, padx=12, pady=8)
 
-        ttk.Label(header, text=f"Folio: {self.quote.folio}", font=("TkDefaultFont", 12, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text=f"Folio: {self.quote.folio}", font=self._bold_font).grid(row=0, column=0, sticky="w")
         ttk.Label(header, text=f"Fecha: {self.quote.fecha}").grid(row=0, column=1, sticky="w", padx=12)
         ttk.Label(header, text=f"Proyecto: {self.quote.proyecto}").grid(row=1, column=0, sticky="w")
         ttk.Label(header, text=f"Cliente: {self.quote.cliente.nombre}").grid(row=1, column=1, sticky="w", padx=12)
@@ -115,7 +120,7 @@ class QuoteModal(tk.Toplevel):
 
     def _add_summary_row(self, frame: ttk.Frame, label: str, value: float, bold: bool = False) -> None:
         row = frame.grid_size()[1]
-        font = ("TkDefaultFont", 10, "bold") if bold else ("TkDefaultFont", 10)
+        font = self._bold_font if bold else self._default_font
         ttk.Label(frame, text=label, font=font).grid(row=row, column=0, sticky="e", padx=6, pady=2)
         ttk.Label(frame, text=_format_currency(value, self.quote.moneda), font=font).grid(
             row=row, column=1, sticky="w", pady=2

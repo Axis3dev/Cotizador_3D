@@ -110,8 +110,12 @@ class CotizadorApp(tk.Tk):
             except tk.TclError:  # pragma: no cover - platform dependent
                 continue
             size = font_obj.cget("size")
-            if isinstance(size, int) and size > 0:
-                font_obj.configure(size=size * 2)
+            if isinstance(size, int) and size != 0:
+                scaled = int(round(size * 1.5))
+                if size > 0:
+                    font_obj.configure(size=max(1, scaled))
+                else:
+                    font_obj.configure(size=min(-1, scaled))
         style = ttk.Style(self)
         default_font = tkfont.nametofont("TkDefaultFont")
         heading_font = tkfont.nametofont("TkHeadingFont")
