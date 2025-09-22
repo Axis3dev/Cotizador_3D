@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime
 from tkinter import messagebox, ttk
 from typing import Optional
@@ -18,6 +19,7 @@ from storage.orders_store import OrdersStore
 from storage.quotes_store import QuoteStore
 from ui.config_window import ConfigWindow
 from ui.modal_cotizacion import QuoteModal
+from ui.tab_clientes import ClientsTab
 from ui.tab_contabilidad import AccountingTab
 from ui.tab_cotizaciones import QuotesTab
 from ui.tab_pedidos import OrdersTab
@@ -28,18 +30,34 @@ class CotizadorApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Cotizador 3D")
-        self.geometry("1200x820")
+        self.geometry("1200x800")
+        self.resizable(False, False)
+        try:
+            self.state("zoomed")
+        except Exception:  # pragma: no cover - platform specific
+            try:
+                self.attributes("-zoomed", True)
+            except Exception:
+                pass
 
-        menubar = tk.Menu(self)
-        menubar.add_command(label="Configuraciones", command=lambda: self.open_config(None))
-        self.config(menu=menubar)
+        self._setup_fonts()
 
         self.config_store = ConfigStore()
         self.clients_store = ClientsStore()
         self.quote_store = QuoteStore()
         self.orders_store = OrdersStore()
 
-        self.notebook = ttk.Notebook(self)
+        container = ttk.Frame(self)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        toolbar = ttk.Frame(container)
+        toolbar.pack(fill=tk.X, padx=12, pady=6)
+
+        self.brand_label = ttk.Label(toolbar, text=self._brand_name(), anchor="w")
+        self.brand_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(toolbar, text="Configuraciones", command=lambda: self.open_config(None)).pack(side=tk.RIGHT)
+
+        self.notebook = ttk.Notebook(container)
         self.notebook.pack(fill=tk.BOTH, expand=True)
 
         self.project_tab = ProjectTab(
@@ -61,6 +79,15 @@ class CotizadorApp(tk.Tk):
             self.notebook,
             self.orders_store,
             on_status_change=self.on_order_status_change,
+            clients_store=self.clients_store,
+            config_store=self.config_store,
+            quote_store=self.quote_store,
+        )
+        self.clients_tab = ClientsTab(
+            self.notebook,
+            self.clients_store,
+            self.orders_store,
+            self.config_store,
         )
         self.accounting_tab = AccountingTab(
             self.notebook,
@@ -71,9 +98,32 @@ class CotizadorApp(tk.Tk):
         self.notebook.add(self.project_tab, text="Proyecto")
         self.notebook.add(self.quotes_tab, text="Cotizaciones")
         self.notebook.add(self.orders_tab, text="Pedidos")
+        self.notebook.add(self.clients_tab, text="Clientes")
         self.notebook.add(self.accounting_tab, text="Contabilidad")
 
         self.last_quote: Optional[Cotizacion] = None
+
+    def _setup_fonts(self) -> None:
+        for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont"):
+            try:
+                font_obj = tkfont.nametofont(name)
+            except tk.TclError:  # pragma: no cover - platform dependent
+                continue
+            size = font_obj.cget("size")
+            if isinstance(size, int) and size > 0:
+                font_obj.configure(size=size * 2)
+        style = ttk.Style(self)
+        default_font = tkfont.nametofont("TkDefaultFont")
+        heading_font = tkfont.nametofont("TkHeadingFont")
+        text_font = tkfont.nametofont("TkTextFont")
+        style.configure("TLabel", font=default_font)
+        style.configure("TButton", font=default_font)
+        style.configure("Treeview", font=text_font)
+        style.configure("Treeview.Heading", font=heading_font)
+
+    def _brand_name(self) -> str:
+        identidad = self.config_store.get_identity()
+        return str(identidad.get("nombre_comercial", "Cotizador 3D")) or "Cotizador 3D"
 
     # ------------------------------------------------------------------
     def open_config(self, section: str | None = None) -> None:
@@ -81,6 +131,8 @@ class CotizadorApp(tk.Tk):
         self.wait_window(window)
         self.project_tab.refresh_materials()
         self.project_tab.refresh_printers()
+        self.brand_label.config(text=self._brand_name())
+        self.clients_tab.refresh()
 
     # ------------------------------------------------------------------
     def calculate_quote(self, context: QuoteContext) -> None:
@@ -88,7 +140,7 @@ class CotizadorApp(tk.Tk):
             fecha_dt = datetime.fromisoformat(context.fecha)
         except ValueError:
             fecha_dt = datetime.utcnow()
-        folio = self.quote_store.generate_folio(fecha_dt)
+        folio = context.folio or self.quote_store.generate_folio(fecha_dt)
 
         financial_raw = self.config_store.get_financials()
         financials = FinancialSettings(
@@ -134,6 +186,7 @@ class CotizadorApp(tk.Tk):
             notas=context.notas,
             config_version=self.config_store.get_config_version(),
         )
+        quote.cliente.id = context.cliente.id
         self.last_quote = quote
 
         modal = QuoteModal(
@@ -151,6 +204,7 @@ class CotizadorApp(tk.Tk):
         self.last_quote = quote
         self.quotes_tab.refresh()
         self.accounting_tab.refresh()
+        self.clients_tab.refresh()
         self.project_tab.clear()
 
     # ------------------------------------------------------------------
@@ -191,17 +245,20 @@ class CotizadorApp(tk.Tk):
             iva=quote.iva,
             moneda=quote.moneda,
         )
+        cliente = self.clients_store.register_order(quote.cliente, pedido)
+        pedido.cliente.id = cliente.id
         self.orders_store.save(pedido)
-        self.clients_store.register_order(quote.cliente, pedido)
         messagebox.showinfo("Pedido", f"Se registró el pedido {pedido.folio}.", parent=self)
         self.quotes_tab.refresh()
         self.orders_tab.refresh()
         self.accounting_tab.refresh()
+        self.clients_tab.refresh()
 
     # ------------------------------------------------------------------
     def on_order_status_change(self, pedido: Pedido) -> None:
         self.accounting_tab.refresh()
         self.quotes_tab.refresh()
+        self.clients_tab.refresh()
 
     # ------------------------------------------------------------------
     def _ask_fecha_estimada(self) -> str | None:
@@ -209,6 +266,8 @@ class CotizadorApp(tk.Tk):
         dialog.title("Fecha estimada de entrega")
         dialog.transient(self)
         dialog.grab_set()
+        dialog.geometry("900x650")
+        dialog.resizable(False, False)
 
         ttk.Label(dialog, text="Selecciona la fecha estimada de entrega:").grid(row=0, column=0, columnspan=2, padx=12, pady=8)
 

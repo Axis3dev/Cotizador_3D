@@ -15,9 +15,7 @@ class MessagingError(RuntimeError):
     """Raised when sending a message fails."""
 
 
-def send_email_with_pdf(config: Dict[str, object], quote: Cotizacion, pdf_path: Path) -> None:
-    if not quote.cliente.correo:
-        raise MessagingError("La cotización no tiene correo de cliente definido.")
+def _prepare_smtp(config: Dict[str, object]) -> tuple[str, int, str, str, str, bool]:
     host = config.get("host")
     if not host:
         raise MessagingError("Configura el servidor SMTP en la sección de integraciones.")
@@ -26,9 +24,17 @@ def send_email_with_pdf(config: Dict[str, object], quote: Cotizacion, pdf_path: 
     password = config.get("password")
     remitente = config.get("remitente") or usuario
     usar_tls = bool(config.get("usar_tls", True))
-
     if not usuario or not password:
         raise MessagingError("Faltan credenciales SMTP (usuario o password).")
+    if not remitente:
+        raise MessagingError("Configura el remitente para enviar correos.")
+    return str(host), port, str(usuario), str(password), str(remitente), usar_tls
+
+
+def send_email_with_pdf(config: Dict[str, object], quote: Cotizacion, pdf_path: Path) -> None:
+    if not quote.cliente.correo:
+        raise MessagingError("La cotización no tiene correo de cliente definido.")
+    host, port, usuario, password, remitente, usar_tls = _prepare_smtp(config)
 
     message = EmailMessage()
     message["Subject"] = f"Cotización {quote.folio}"
@@ -79,4 +85,46 @@ def send_whatsapp_placeholder(config: Dict[str, object], quote: Cotizacion, pdf_
         )
 
 
-__all__ = ["MessagingError", "send_email_with_pdf", "send_whatsapp_placeholder"]
+def send_email_with_attachment(
+    config: Dict[str, object],
+    destinatario: str,
+    asunto: str,
+    cuerpo: str,
+    attachment: Path,
+) -> None:
+    if not destinatario:
+        raise MessagingError("Proporciona un destinatario válido.")
+    host, port, usuario, password, remitente, usar_tls = _prepare_smtp(config)
+
+    message = EmailMessage()
+    message["Subject"] = asunto
+    message["From"] = remitente
+    message["To"] = destinatario
+    message.set_content(cuerpo)
+
+    mime_type, _ = mimetypes.guess_type(attachment)
+    maintype, subtype = (mime_type or "application/pdf").split("/", 1)
+    with attachment.open("rb") as fh:
+        message.add_attachment(
+            fh.read(),
+            maintype=maintype,
+            subtype=subtype,
+            filename=attachment.name,
+        )
+
+    try:
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            if usar_tls:
+                smtp.starttls()
+            smtp.login(usuario, password)
+            smtp.send_message(message)
+    except Exception as exc:  # pragma: no cover - network I/O
+        raise MessagingError(str(exc)) from exc
+
+
+__all__ = [
+    "MessagingError",
+    "send_email_with_pdf",
+    "send_email_with_attachment",
+    "send_whatsapp_placeholder",
+]

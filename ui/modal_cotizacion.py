@@ -36,7 +36,8 @@ class QuoteModal(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("Resumen de cotización")
-        self.geometry("820x600")
+        self.geometry("900x650")
+        self.resizable(False, False)
         self.transient(master)
         self.grab_set()
 
@@ -137,7 +138,11 @@ class QuoteModal(tk.Toplevel):
 
     def save_quote(self) -> None:
         path = self.quote_store.save(self.quote)
-        self.clients_store.register_quote(self.quote.cliente, self.quote)
+        cliente = self.clients_store.register_quote(self.quote.cliente, self.quote)
+        self.quote.cliente.id = cliente.id
+        self.quote.cliente.nombre = cliente.nombre
+        self.quote.cliente.correo = cliente.correo
+        self.quote.cliente.celular = cliente.celular
         self.saved_path = path
         messagebox.showinfo("Guardado", f"Cotización guardada en {path}", parent=self)
         if self.on_saved:

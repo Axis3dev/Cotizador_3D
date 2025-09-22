@@ -31,6 +31,10 @@ class Pedido:
     estatus: str = "pendiente"
     anticipo: bool = False
     liquidado: bool = False
+    retencion: float = 0.0
+    facturado: bool = False
+    numero_factura: Optional[str] = None
+    factura_path: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,6 +56,10 @@ class Pedido:
             "estatus": self.estatus,
             "anticipo": self.anticipo,
             "liquidado": self.liquidado,
+            "retencion": self.retencion,
+            "facturado": self.facturado,
+            "numero_factura": self.numero_factura,
+            "factura_path": self.factura_path,
         }
 
     @classmethod
@@ -75,6 +83,10 @@ class Pedido:
             estatus=str(data.get("estatus", "pendiente")),
             anticipo=bool(data.get("anticipo", False)),
             liquidado=bool(data.get("liquidado", False)),
+            retencion=float(data.get("retencion", 0.0)),
+            facturado=bool(data.get("facturado", False)),
+            numero_factura=data.get("numero_factura"),
+            factura_path=data.get("factura_path"),
         )
 
 

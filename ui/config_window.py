@@ -18,7 +18,8 @@ class ConfigWindow(tk.Toplevel):
     def __init__(self, master: tk.Widget, config_store: ConfigStore, focus_section: str | None = None) -> None:
         super().__init__(master)
         self.title("Configuraciones")
-        self.geometry("720x520")
+        self.geometry("900x650")
+        self.resizable(False, False)
         self.transient(master)
         self.grab_set()
 
@@ -102,6 +103,8 @@ class ConfigWindow(tk.Toplevel):
     def _material_dialog(self, material: Optional[Material] = None) -> Optional[Material]:
         dialog = tk.Toplevel(self)
         dialog.title("Material")
+        dialog.geometry("900x650")
+        dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
         ttk.Label(dialog, text="Nombre:").grid(row=0, column=0, sticky="w", padx=6, pady=4)
@@ -232,6 +235,8 @@ class ConfigWindow(tk.Toplevel):
     def _printer_dialog(self, printer: Optional[Impresora] = None) -> Optional[Impresora]:
         dialog = tk.Toplevel(self)
         dialog.title("Impresora")
+        dialog.geometry("900x650")
+        dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
 
@@ -414,6 +419,8 @@ class ConfigWindow(tk.Toplevel):
         image.thumbnail((240, 240))
         preview = tk.Toplevel(self)
         preview.title("Vista previa del logo")
+        preview.geometry("900x650")
+        preview.resizable(False, False)
         preview.transient(self)
         preview.grab_set()
         photo = ImageTk.PhotoImage(image)

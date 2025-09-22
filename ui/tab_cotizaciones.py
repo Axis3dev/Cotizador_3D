@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import tkinter as tk
 from tkinter import messagebox, ttk
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from tkcalendar import DateEntry
 
@@ -32,6 +32,9 @@ class QuotesTab(ttk.Frame):
         self.on_convert = on_convert
         self.quotes: List[Cotizacion] = []
         self.filtered: List[Cotizacion] = []
+        self._active_map: Dict[str, Cotizacion] = {}
+        self._completed_map: Dict[str, Cotizacion] = {}
+        self._selected_tree: Optional[ttk.Treeview] = None
 
         self.fecha_inicio_var = tk.StringVar()
         self.fecha_fin_var = tk.StringVar()
@@ -68,22 +71,50 @@ class QuotesTab(ttk.Frame):
         ttk.Button(filter_frame, text="Aplicar", command=self.apply_filters).pack(side=tk.LEFT, padx=6)
         ttk.Button(filter_frame, text="Limpiar", command=self.clear_filters).pack(side=tk.LEFT)
 
+        lists_frame = ttk.Frame(self)
+        lists_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=6, pady=4)
+        lists_frame.columnconfigure(0, weight=1)
+        lists_frame.rowconfigure(0, weight=1)
+        lists_frame.rowconfigure(1, weight=1)
+
         columns = ("estado", "folio", "fecha", "proyecto", "cliente", "correo", "celular")
-        self.tree = ttk.Treeview(self, columns=columns, show="headings")
         headings = ["Estado", "Folio", "Fecha", "Proyecto", "Cliente", "Correo", "Celular"]
+
+        active_frame = ttk.LabelFrame(lists_frame, text="Pendientes")
+        active_frame.columnconfigure(0, weight=1)
+        active_frame.rowconfigure(0, weight=1)
+        self.active_tree = ttk.Treeview(active_frame, columns=columns, show="headings")
         for col, text in zip(columns, headings):
-            self.tree.heading(col, text=text)
+            self.active_tree.heading(col, text=text)
             width = 120 if col in {"folio", "fecha"} else 200
             if col == "estado":
                 width = 110
-            self.tree.column(col, width=width, anchor="center")
-        self.tree.grid(row=1, column=0, sticky="nsew")
+            self.active_tree.column(col, width=width, anchor="center")
+        self.active_tree.grid(row=0, column=0, sticky="nsew")
+        active_scroll = ttk.Scrollbar(active_frame, orient=tk.VERTICAL, command=self.active_tree.yview)
+        active_scroll.grid(row=0, column=1, sticky="ns")
+        self.active_tree.configure(yscrollcommand=active_scroll.set)
 
-        scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
-        scrollbar.grid(row=1, column=1, sticky="ns")
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        self.tree.tag_configure("pedido", foreground="#15803d")
-        self.tree.tag_configure("pendiente", foreground="#c2410c")
+        completed_frame = ttk.LabelFrame(lists_frame, text="Convertidas a pedido")
+        completed_frame.columnconfigure(0, weight=1)
+        completed_frame.rowconfigure(0, weight=1)
+        self.completed_tree = ttk.Treeview(completed_frame, columns=columns, show="headings")
+        for col, text in zip(columns, headings):
+            self.completed_tree.heading(col, text=text)
+            width = 120 if col in {"folio", "fecha"} else 200
+            if col == "estado":
+                width = 110
+            self.completed_tree.column(col, width=width, anchor="center")
+        self.completed_tree.grid(row=0, column=0, sticky="nsew")
+        completed_scroll = ttk.Scrollbar(completed_frame, orient=tk.VERTICAL, command=self.completed_tree.yview)
+        completed_scroll.grid(row=0, column=1, sticky="ns")
+        self.completed_tree.configure(yscrollcommand=completed_scroll.set)
+        self.completed_tree.tag_configure("pedido", foreground="#15803d")
+
+        active_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
+        completed_frame.grid(row=1, column=0, sticky="nsew")
+        self.active_tree.tag_configure("pendiente", foreground="#c2410c")
+        self.completed_tree.tag_configure("pedido", foreground="#15803d")
 
         button_frame = ttk.Frame(self)
         button_frame.grid(row=2, column=0, columnspan=2, pady=8)
@@ -95,11 +126,13 @@ class QuotesTab(ttk.Frame):
         self.details = tk.Text(self, height=8, state=tk.DISABLED)
         self.details.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=6, pady=6)
 
-        self.tree.bind("<<TreeviewSelect>>", lambda _: self.show_details())
+        self.active_tree.bind("<<TreeviewSelect>>", lambda _: self._on_tree_select(self.active_tree))
+        self.completed_tree.bind("<<TreeviewSelect>>", lambda _: self._on_tree_select(self.completed_tree))
 
     # ------------------------------------------------------------------
     def refresh(self) -> None:
         self.quotes = self.quote_store.list_quotes()
+        self._selected_tree = None
         self.apply_filters()
 
     # ------------------------------------------------------------------
@@ -113,7 +146,10 @@ class QuotesTab(ttk.Frame):
         pedidos = {pedido.folio_cotizacion for pedido in self.orders_store.list_orders()}
 
         filtered: List[Cotizacion] = []
-        self.tree.delete(*self.tree.get_children())
+        self.active_tree.delete(*self.active_tree.get_children())
+        self.completed_tree.delete(*self.completed_tree.get_children())
+        self._active_map = {}
+        self._completed_map = {}
         for quote in self.quotes:
             fecha = self._parse_date(quote.fecha)
             if inicio and fecha and fecha < inicio:
@@ -123,7 +159,8 @@ class QuotesTab(ttk.Frame):
             filtered.append(quote)
             tag = "pedido" if quote.folio in pedidos else "pendiente"
             estado_text = "● Pedido" if tag == "pedido" else "● Pendiente"
-            self.tree.insert(
+            target_tree = self.completed_tree if tag == "pedido" else self.active_tree
+            item = target_tree.insert(
                 "",
                 tk.END,
                 values=(
@@ -137,7 +174,12 @@ class QuotesTab(ttk.Frame):
                 ),
                 tags=(tag,),
             )
+            if tag == "pedido":
+                self._completed_map[item] = quote
+            else:
+                self._active_map[item] = quote
         self.filtered = filtered
+        self._selected_tree = None
         self.details.configure(state=tk.NORMAL)
         self.details.delete("1.0", tk.END)
         self.details.configure(state=tk.DISABLED)
@@ -148,17 +190,20 @@ class QuotesTab(ttk.Frame):
         self.fecha_fin_var.set("")
         self.fecha_inicio_entry.delete(0, tk.END)
         self.fecha_fin_entry.delete(0, tk.END)
+        self._selected_tree = None
         self.apply_filters()
 
     # ------------------------------------------------------------------
     def get_selected_quote(self) -> Optional[Cotizacion]:
-        selection = self.tree.selection()
+        tree = self._selected_tree
+        if not tree:
+            return None
+        selection = tree.selection()
         if not selection:
             return None
-        index = self.tree.index(selection[0])
-        if index >= len(self.filtered):
-            return None
-        return self.filtered[index]
+        item = selection[0]
+        mapping = self._active_map if tree is self.active_tree else self._completed_map
+        return mapping.get(item)
 
     # ------------------------------------------------------------------
     def view_selected(self) -> None:
@@ -207,6 +252,11 @@ class QuotesTab(ttk.Frame):
                 lines.append(f"  - {pieza.pieza.nombre} x{pieza.pieza.cantidad}: {pieza.total_total:.2f} {quote.moneda}")
             self.details.insert(tk.END, "\n".join(lines))
         self.details.configure(state=tk.DISABLED)
+
+    # ------------------------------------------------------------------
+    def _on_tree_select(self, tree: ttk.Treeview) -> None:
+        self._selected_tree = tree
+        self.show_details()
 
     # ------------------------------------------------------------------
     @staticmethod

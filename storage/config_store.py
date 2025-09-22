@@ -56,6 +56,9 @@ DEFAULT_CONFIG: Dict[str, object] = {
             "password": "",
             "remitente": "cotizaciones@example.com",
             "usar_tls": True,
+            "contador": "",
+            "mensaje": "Adjuntamos la cotización solicitada.",
+            "mensaje_contador": "Adjuntamos la solicitud de facturación.",
         },
         "whatsapp": {
             "endpoint": "https://api.whatsapp.example.com/send",
@@ -194,6 +197,8 @@ class ConfigStore:
         logo_path = str(payload.get("logo_path", ""))
         if logo_path:
             path = Path(logo_path).expanduser()
+            if not path.is_absolute():
+                path = (Path.cwd() / path).resolve()
             payload["logo_path"] = path.as_posix()
         self.data["identidad"] = payload
         self.save()

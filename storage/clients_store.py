@@ -47,23 +47,24 @@ class ClientsStore:
                 return key
         return None
 
+    def get(self, client_id: str) -> Optional[Cliente]:
+        payload = self.data.get(client_id)
+        return Cliente.from_dict(payload) if payload else None
+
     def find(self, correo: str = "", celular: str = "") -> Optional[Cliente]:
         key = self._key(correo, celular)
         if not key:
             return None
         return Cliente.from_dict(self.data[key])
 
-    def upsert(self, info: ClienteInfo) -> Cliente:
+    def upsert(self, info: ClienteInfo, extra: Optional[Dict[str, object]] = None) -> Cliente:
         correo = info.correo.strip().lower()
         celular = info.celular.strip()
-        key = self._key(correo, celular)
-        if key:
+        key = info.id or self._key(correo, celular)
+        if key and key in self.data:
             cliente = Cliente.from_dict(self.data[key])
-            cliente.nombre = info.nombre or cliente.nombre
-            cliente.correo = correo or cliente.correo
-            cliente.celular = celular or cliente.celular
         else:
-            key = uuid.uuid4().hex
+            key = key or uuid.uuid4().hex
             cliente = Cliente(
                 id=key,
                 nombre=info.nombre,
@@ -72,9 +73,30 @@ class ClientsStore:
                 fecha_alta=datetime.utcnow().date().isoformat(),
                 historial=[],
             )
-        self.data[key] = cliente.to_dict()
+
+        cliente.nombre = info.nombre or cliente.nombre
+        if correo:
+            cliente.correo = correo
+        if celular:
+            cliente.celular = celular
+
+        if extra:
+            cliente.rfc = str(extra.get("rfc", cliente.rfc))
+            cliente.razon_social = str(extra.get("razon_social", cliente.razon_social))
+            cliente.domicilio_fiscal = str(extra.get("domicilio_fiscal", cliente.domicilio_fiscal))
+            cliente.codigo_postal = str(extra.get("codigo_postal", cliente.codigo_postal))
+            cliente.regimen = str(extra.get("regimen", cliente.regimen))
+            cliente.ciudad = str(extra.get("ciudad", cliente.ciudad))
+            cliente.estado = str(extra.get("estado", cliente.estado))
+
+        info.id = cliente.id
+        self.data[cliente.id] = cliente.to_dict()
         self.save()
         return cliente
+
+    def update_client(self, cliente: Cliente) -> None:
+        self.data[cliente.id] = cliente.to_dict()
+        self.save()
 
     def list_clients(self) -> List[Cliente]:
         return [Cliente.from_dict(payload) for payload in self.data.values()]
@@ -93,7 +115,12 @@ class ClientsStore:
         cliente = self.upsert(info)
         cliente.pedidos += 1
         cliente.total_facturado += pedido.total
+        cliente.total_costos += pedido.subtotal_base
+        cliente.total_gastos += pedido.merma + pedido.riesgo
         cliente.total_ganancia += pedido.ganancia
+        cliente.total_iva += pedido.iva
+        cliente.total_retencion += pedido.retencion
+        cliente.total_neto += pedido.total - pedido.retencion
         history_entry = f"Pedido {pedido.folio} - {pedido.total:.2f} {pedido.moneda}"
         historial = cliente.historial or []
         historial.append(history_entry)
@@ -101,6 +128,55 @@ class ClientsStore:
         self.data[cliente.id] = cliente.to_dict()
         self.save()
         return cliente
+
+    def sync_totals(self, orders: List[Pedido]) -> None:
+        """Recalculate aggregated totals from the persisted orders."""
+
+        aggregates: Dict[str, Dict[str, float]] = {}
+        for pedido in orders:
+            cliente_id = pedido.cliente.id or self._key(pedido.cliente.correo, pedido.cliente.celular)
+            if not cliente_id:
+                continue
+            bucket = aggregates.setdefault(
+                cliente_id,
+                {
+                    "pedidos": 0,
+                    "total_facturado": 0.0,
+                    "total_costos": 0.0,
+                    "total_gastos": 0.0,
+                    "total_ganancia": 0.0,
+                    "total_iva": 0.0,
+                    "total_retencion": 0.0,
+                    "total_neto": 0.0,
+                },
+            )
+            bucket["pedidos"] += 1
+            bucket["total_facturado"] += pedido.total
+            bucket["total_costos"] += pedido.subtotal_base
+            bucket["total_gastos"] += pedido.merma + pedido.riesgo
+            bucket["total_ganancia"] += pedido.ganancia
+            bucket["total_iva"] += pedido.iva
+            bucket["total_retencion"] += pedido.retencion
+            bucket["total_neto"] += pedido.total - pedido.retencion
+
+        updated = False
+        for client_id, payload in aggregates.items():
+            cliente = self.get(client_id)
+            if not cliente:
+                continue
+            cliente.pedidos = payload["pedidos"]
+            cliente.total_facturado = payload["total_facturado"]
+            cliente.total_costos = payload["total_costos"]
+            cliente.total_gastos = payload["total_gastos"]
+            cliente.total_ganancia = payload["total_ganancia"]
+            cliente.total_iva = payload["total_iva"]
+            cliente.total_retencion = payload["total_retencion"]
+            cliente.total_neto = payload["total_neto"]
+            self.data[client_id] = cliente.to_dict()
+            updated = True
+
+        if updated:
+            self.save()
 
 
 __all__ = ["ClientsStore", "CLIENTS_PATH"]

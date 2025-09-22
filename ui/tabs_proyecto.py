@@ -30,6 +30,7 @@ from ui.components.widgets import LabeledCombobox, LabeledEntry
 
 @dataclass
 class QuoteContext:
+    folio: Optional[str]
     proyecto: str
     fecha: str
     tipo: PrinterType
@@ -54,6 +55,7 @@ class PieceDialog(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("Detalle de pieza")
+        self.geometry("900x650")
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -231,6 +233,8 @@ class ProjectTab(ttk.Frame):
         self.materiales: List[Material] = []
         self.impresoras: List[Impresora] = []
         self.piezas: List[Pieza] = []
+        self.current_folio: Optional[str] = None
+        self.current_cliente_id: Optional[str] = None
 
         self.project_name_var = tk.StringVar()
         self.fecha_var = tk.StringVar(value=self.fecha_actual)
@@ -339,9 +343,6 @@ class ProjectTab(ttk.Frame):
         action_frame = ttk.Frame(self)
         action_frame.grid(row=4, column=0, sticky="e", padx=10, pady=(0, 10))
         ttk.Button(action_frame, text="Calcular cotización", command=self.on_calculate).pack(side=tk.RIGHT)
-        ttk.Button(action_frame, text="Configuraciones", command=lambda: self.open_config_callback(None)).pack(
-            side=tk.LEFT, padx=4
-        )
 
     # ------------------------------------------------------------------
     def refresh_materials(self) -> None:
@@ -392,11 +393,14 @@ class ProjectTab(ttk.Frame):
         celular = self.client_celular_var.get()
         cliente = self.clients_store.find(correo, celular)
         if cliente:
+            self.current_cliente_id = cliente.id
             self.client_nombre_var.set(cliente.nombre)
             if cliente.correo:
                 self.client_correo_var.set(cliente.correo)
             if cliente.celular:
                 self.client_celular_var.set(cliente.celular)
+        else:
+            self.current_cliente_id = None
 
     def add_piece(self) -> None:
         material = self.get_material()
@@ -482,6 +486,7 @@ class ProjectTab(ttk.Frame):
             messagebox.showerror("Dato faltante", "Agrega al menos una pieza para cotizar.", parent=self)
             return None
         cliente = ClienteInfo(
+            id=self.current_cliente_id,
             nombre=self.client_nombre_var.get().strip(),
             correo=self.client_correo_var.get().strip(),
             celular=self.client_celular_var.get().strip(),
@@ -493,6 +498,7 @@ class ProjectTab(ttk.Frame):
             messagebox.showerror("Dato inválido", "El precio del material debe ser numérico.", parent=self)
             return None
         return QuoteContext(
+            folio=self.current_folio,
             proyecto=nombre,
             fecha=self.fecha_var.get(),
             tipo=self.tipo_var.get() or "filamento",
@@ -511,6 +517,7 @@ class ProjectTab(ttk.Frame):
         self.calculate_callback(context)
 
     def load_quote(self, quote: Cotizacion) -> None:
+        self.current_folio = quote.folio
         self.project_name_var.set(quote.proyecto)
         self.fecha_var.set(quote.fecha)
         self.tipo_var.set(quote.tipo)
@@ -518,6 +525,7 @@ class ProjectTab(ttk.Frame):
         self.impresora_var.set(quote.impresora)
         self.material_var.set(quote.material)
         self.material_precio_var.set(f"{quote.material_precio_kg:.2f}")
+        self.current_cliente_id = quote.cliente.id
         self.client_nombre_var.set(quote.cliente.nombre)
         self.client_correo_var.set(quote.cliente.correo)
         self.client_celular_var.set(quote.cliente.celular)
@@ -536,6 +544,8 @@ class ProjectTab(ttk.Frame):
         self.client_correo_var.set("")
         self.client_celular_var.set("")
         self.notas_text.delete("1.0", tk.END)
+        self.current_folio = None
+        self.current_cliente_id = None
 
 
 __all__ = ["ProjectTab", "PieceDialog", "QuoteContext"]

@@ -61,7 +61,9 @@
       "password": "",
       "remitente": "cotizaciones@example.com",
       "usar_tls": true,
-      "mensaje": "Adjuntamos la cotización solicitada."
+      "mensaje": "Adjuntamos la cotización solicitada.",
+      "contador": "",
+      "mensaje_contador": "Adjuntamos la solicitud de facturación."
     },
     "whatsapp": {
       "endpoint": "https://api.whatsapp.example.com/send",
