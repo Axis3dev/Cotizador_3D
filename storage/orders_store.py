@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,15 +21,11 @@ class OrdersStore:
     def _order_path(self, folio: str) -> Path:
         return self.directory / f"{folio}.json"
 
-    def generate_folio(self, fecha: datetime | None = None) -> str:
-        fecha = fecha or datetime.utcnow()
-        prefix = fecha.strftime("PED-%Y%m%d")
-        counter = 1
-        while True:
-            folio = f"{prefix}-{counter:03d}"
-            if not self._order_path(folio).exists():
-                return folio
-            counter += 1
+    def path_for(self, folio: str) -> Path:
+        return self._order_path(folio)
+
+    def exists(self, folio: str) -> bool:
+        return self._order_path(folio).exists()
 
     def save(self, pedido: Pedido) -> Path:
         path = self._order_path(pedido.folio)

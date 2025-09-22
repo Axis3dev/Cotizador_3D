@@ -9,7 +9,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import List, Optional
 
-from models.cliente import ClienteInfo
+from models.cliente import Cliente, ClienteInfo
 from models.cotizacion import Cotizacion
 from models.impresora import Impresora, PrinterType
 from models.material import Material
@@ -40,6 +40,101 @@ class QuoteContext:
     piezas: List[Pieza]
     cliente: ClienteInfo
     notas: str
+
+
+class ClientSearchDialog(tk.Toplevel):
+    """Modal dialog to search and select a client from the catalog."""
+
+    def __init__(self, master: tk.Widget, clients_store: ClientsStore, initial_query: str = "") -> None:
+        super().__init__(master)
+        self.title("Buscar cliente")
+        self.geometry("700x500")
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+
+        self.clients_store = clients_store
+        self.result: Optional[Cliente] = None
+        self._items: dict[str, Cliente] = {}
+        self.query_var = tk.StringVar(value=initial_query)
+
+        container = ttk.Frame(self)
+        container.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(1, weight=1)
+
+        search_frame = ttk.Frame(container)
+        search_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        search_frame.columnconfigure(1, weight=1)
+        ttk.Label(search_frame, text="Buscar:").grid(row=0, column=0, padx=(0, 6), sticky="w")
+        entry = ttk.Entry(search_frame, textvariable=self.query_var)
+        entry.grid(row=0, column=1, sticky="ew")
+        entry.bind("<KeyRelease>", lambda _: self._refresh())
+        entry.bind("<Return>", self._on_enter)
+
+        columns = ("nombre", "correo", "celular")
+        self.tree = ttk.Treeview(container, columns=columns, show="headings")
+        self.tree.heading("nombre", text="Nombre")
+        self.tree.heading("correo", text="Correo")
+        self.tree.heading("celular", text="Celular")
+        self.tree.column("nombre", width=240, anchor="w")
+        self.tree.column("correo", width=200, anchor="w")
+        self.tree.column("celular", width=120, anchor="center")
+        self.tree.grid(row=1, column=0, sticky="nsew")
+        scrollbar = ttk.Scrollbar(container, orient=tk.VERTICAL, command=self.tree.yview)
+        scrollbar.grid(row=1, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        self.tree.bind("<Double-1>", lambda _: self._accept())
+
+        button_frame = ttk.Frame(container)
+        button_frame.grid(row=2, column=0, columnspan=2, pady=(12, 0), sticky="e")
+        ttk.Button(button_frame, text="Seleccionar", command=self._accept).pack(side=tk.RIGHT, padx=4)
+        ttk.Button(button_frame, text="Cancelar", command=self._cancel).pack(side=tk.RIGHT, padx=4)
+
+        self._refresh()
+        entry.focus_set()
+
+    def _refresh(self) -> None:
+        query = self.query_var.get()
+        matches = self.clients_store.search(query)
+        self._items.clear()
+        self.tree.delete(*self.tree.get_children())
+        for cliente in matches:
+            item = self.tree.insert(
+                "",
+                tk.END,
+                values=(cliente.nombre, cliente.correo, cliente.celular),
+            )
+            self._items[item] = cliente
+
+    def _selected_client(self) -> Optional[Cliente]:
+        selection = self.tree.selection()
+        if not selection:
+            return None
+        return self._items.get(selection[0])
+
+    def _accept(self) -> None:
+        cliente = self._selected_client()
+        if not cliente:
+            return
+        self.result = cliente
+        self.destroy()
+
+    def _cancel(self) -> None:
+        self.result = None
+        self.destroy()
+
+    def _on_enter(self, _: tk.Event) -> None:
+        items = self.tree.get_children()
+        if not items:
+            return
+        if len(items) == 1 or not self.tree.selection():
+            self.tree.selection_set(items[0])
+        self._accept()
+
+    def show(self) -> Optional[Cliente]:
+        self.wait_window(self)
+        return self.result
 
 
 class PieceDialog(tk.Toplevel):
@@ -247,6 +342,7 @@ class ProjectTab(ttk.Frame):
         self.client_nombre_var = tk.StringVar()
         self.client_correo_var = tk.StringVar()
         self.client_celular_var = tk.StringVar()
+        self.client_rfc_var = tk.StringVar()
         self.notas_text = tk.Text(self, height=4)
 
         self.piezas_tree: ttk.Treeview
@@ -262,6 +358,7 @@ class ProjectTab(ttk.Frame):
         project_frame = ttk.LabelFrame(self, text="Proyecto")
         project_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=8)
         project_frame.columnconfigure(1, weight=1)
+        project_frame.columnconfigure(2, weight=0)
 
         ttk.Label(project_frame, text="Nombre del proyecto:").grid(row=0, column=0, sticky="w")
         ttk.Entry(project_frame, textvariable=self.project_name_var, width=40).grid(row=0, column=1, sticky="ew", padx=4)
@@ -270,31 +367,46 @@ class ProjectTab(ttk.Frame):
         ttk.Label(project_frame, textvariable=self.fecha_var).grid(row=1, column=1, sticky="w")
 
         type_combo = LabeledCombobox(project_frame, "Tipo impresión", self.tipo_var, ["filamento", "resina"])
-        type_combo.grid(row=2, column=0, sticky="w", pady=2)
+        type_combo.grid(row=2, column=0, sticky="ew", pady=2)
         type_combo.combobox.bind("<<ComboboxSelected>>", lambda _: self.refresh_printers())
 
         self.impresora_combo = LabeledCombobox(project_frame, "Impresora", self.impresora_var, [])
-        self.impresora_combo.grid(row=2, column=1, sticky="w", pady=2)
+        self.impresora_combo.grid(row=2, column=1, sticky="ew", pady=2, padx=(0, 4))
 
-        ttk.Button(project_frame, text="Administrar impresoras", command=lambda: self.open_config_callback("impresoras")).grid(row=3, column=1, sticky="w", pady=(4, 0))
+        ttk.Button(
+            project_frame,
+            text="Administrar impresoras",
+            command=lambda: self.open_config_callback("impresoras"),
+        ).grid(row=2, column=2, sticky="ew", pady=2)
 
         material_frame = ttk.LabelFrame(self, text="Material")
         material_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=8)
-        material_frame.columnconfigure(1, weight=1)
+        material_frame.columnconfigure(0, weight=1)
+        material_frame.columnconfigure(1, weight=0)
+        material_frame.columnconfigure(2, weight=0)
 
         self.material_combo = LabeledCombobox(material_frame, "Material", self.material_var, [])
-        self.material_combo.grid(row=0, column=0, sticky="w")
+        self.material_combo.grid(row=0, column=0, sticky="ew", padx=(0, 4))
         self.material_combo.combobox.bind("<<ComboboxSelected>>", lambda _: self.on_material_change())
 
         LabeledEntry(material_frame, "Precio kg", self.material_precio_var, validate="float").grid(row=0, column=1, sticky="w")
-        ttk.Button(material_frame, text="Administrar materiales", command=lambda: self.open_config_callback("materiales")).grid(row=1, column=1, sticky="w", pady=(4, 0))
+        ttk.Button(
+            material_frame,
+            text="Administrar materiales",
+            command=lambda: self.open_config_callback("materiales"),
+        ).grid(row=0, column=2, sticky="ew")
 
         client_frame = ttk.LabelFrame(self, text="Cliente")
         client_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=8)
         client_frame.columnconfigure(1, weight=1)
+        client_frame.columnconfigure(2, weight=0)
 
         ttk.Label(client_frame, text="Nombre:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(client_frame, textvariable=self.client_nombre_var).grid(row=0, column=1, sticky="ew", padx=4)
+        self.client_nombre_entry = ttk.Entry(client_frame, textvariable=self.client_nombre_var)
+        self.client_nombre_entry.grid(row=0, column=1, sticky="ew", padx=4)
+        self.client_nombre_entry.bind("<Return>", self.on_client_name_enter)
+        ttk.Button(client_frame, text="Buscar cliente", command=self.open_client_search).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+
         ttk.Label(client_frame, text="Correo:").grid(row=1, column=0, sticky="w")
         correo_entry = ttk.Entry(client_frame, textvariable=self.client_correo_var)
         correo_entry.grid(row=1, column=1, sticky="ew", padx=4)
@@ -304,11 +416,14 @@ class ProjectTab(ttk.Frame):
         celular_entry.grid(row=2, column=1, sticky="ew", padx=4)
         celular_entry.bind("<FocusOut>", lambda _: self.autocomplete_cliente())
 
-        ttk.Label(client_frame, text="Notas:").grid(row=3, column=0, sticky="nw")
+        ttk.Label(client_frame, text="RFC:").grid(row=3, column=0, sticky="w")
+        ttk.Entry(client_frame, textvariable=self.client_rfc_var).grid(row=3, column=1, sticky="ew", padx=4)
+
+        ttk.Label(client_frame, text="Notas:").grid(row=4, column=0, sticky="nw")
         notas_scroll = tk.Scrollbar(client_frame, orient=tk.VERTICAL)
         self.notas_text = tk.Text(client_frame, height=4, width=40, yscrollcommand=notas_scroll.set)
-        self.notas_text.grid(row=3, column=1, sticky="ew", padx=4)
-        notas_scroll.grid(row=3, column=2, sticky="ns")
+        self.notas_text.grid(row=4, column=1, sticky="ew", padx=4)
+        notas_scroll.grid(row=4, column=2, sticky="ns")
         notas_scroll.config(command=self.notas_text.yview)
 
         piezas_frame = ttk.LabelFrame(self, text="Piezas")
@@ -393,14 +508,41 @@ class ProjectTab(ttk.Frame):
         celular = self.client_celular_var.get()
         cliente = self.clients_store.find(correo, celular)
         if cliente:
-            self.current_cliente_id = cliente.id
-            self.client_nombre_var.set(cliente.nombre)
-            if cliente.correo:
-                self.client_correo_var.set(cliente.correo)
-            if cliente.celular:
-                self.client_celular_var.set(cliente.celular)
+            self._apply_client(cliente)
         else:
             self.current_cliente_id = None
+            self.client_rfc_var.set("")
+
+    def _apply_client(self, cliente: Cliente) -> None:
+        self.current_cliente_id = cliente.id
+        self.client_nombre_var.set(cliente.nombre)
+        if cliente.correo:
+            self.client_correo_var.set(cliente.correo)
+        if cliente.celular:
+            self.client_celular_var.set(cliente.celular)
+        self.client_rfc_var.set(cliente.rfc or "")
+
+    def on_client_name_enter(self, _: tk.Event) -> None:
+        query = self.client_nombre_var.get().strip()
+        if not query:
+            return
+        matches = self.clients_store.search(query)
+        if not matches:
+            messagebox.showinfo("Clientes", "No se encontraron coincidencias.", parent=self)
+            return
+        if len(matches) == 1:
+            self._apply_client(matches[0])
+            return
+        dialog = ClientSearchDialog(self, self.clients_store, initial_query=query)
+        seleccionado = dialog.show()
+        if seleccionado:
+            self._apply_client(seleccionado)
+
+    def open_client_search(self) -> None:
+        dialog = ClientSearchDialog(self, self.clients_store, initial_query=self.client_nombre_var.get().strip())
+        seleccionado = dialog.show()
+        if seleccionado:
+            self._apply_client(seleccionado)
 
     def add_piece(self) -> None:
         material = self.get_material()
@@ -490,6 +632,7 @@ class ProjectTab(ttk.Frame):
             nombre=self.client_nombre_var.get().strip(),
             correo=self.client_correo_var.get().strip(),
             celular=self.client_celular_var.get().strip(),
+            rfc=self.client_rfc_var.get().strip(),
         )
         notas = self.notas_text.get("1.0", tk.END).strip()
         try:
@@ -529,6 +672,7 @@ class ProjectTab(ttk.Frame):
         self.client_nombre_var.set(quote.cliente.nombre)
         self.client_correo_var.set(quote.cliente.correo)
         self.client_celular_var.set(quote.cliente.celular)
+        self.client_rfc_var.set(quote.cliente.rfc)
         self.notas_text.delete("1.0", tk.END)
         if quote.notas:
             self.notas_text.insert(tk.END, quote.notas)
@@ -543,9 +687,10 @@ class ProjectTab(ttk.Frame):
         self.client_nombre_var.set("")
         self.client_correo_var.set("")
         self.client_celular_var.set("")
+        self.client_rfc_var.set("")
         self.notas_text.delete("1.0", tk.END)
         self.current_folio = None
         self.current_cliente_id = None
 
 
-__all__ = ["ProjectTab", "PieceDialog", "QuoteContext"]
+__all__ = ["ProjectTab", "PieceDialog", "QuoteContext", "ClientSearchDialog"]

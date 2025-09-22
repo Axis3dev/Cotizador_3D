@@ -71,5 +71,10 @@
       "numero": "",
       "mensaje_base": "Hola {cliente}, adjuntamos tu cotización {folio}."
     }
+  },
+  "folios": {
+    "cotizaciones": 1,
+    "pedidos": 1,
+    "padding": 3
   }
 }

@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import datetime as dt
+import tempfile
 import tkinter as tk
-from tkinter import messagebox, ttk
+from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Dict, List, Optional
 
 from tkcalendar import DateEntry
 
+from export.csv_quote import export_quote_csv
+from export.pdf_quote import export_quote_pdf
 from models.cotizacion import Cotizacion
+from storage.config_store import ConfigStore
 from storage.orders_store import OrdersStore
 from storage.quotes_store import QuoteStore
+from utils import MessagingError, send_email_with_pdf, send_whatsapp_placeholder
 
 
 class QuotesTab(ttk.Frame):
@@ -20,6 +26,7 @@ class QuotesTab(ttk.Frame):
         master: ttk.Notebook,
         quote_store: QuoteStore,
         orders_store: OrdersStore,
+        config_store: ConfigStore,
         on_view: Callable[[Cotizacion], None],
         on_edit: Callable[[Cotizacion], None],
         on_convert: Callable[[Cotizacion], None],
@@ -27,6 +34,7 @@ class QuotesTab(ttk.Frame):
         super().__init__(master)
         self.quote_store = quote_store
         self.orders_store = orders_store
+        self.config_store = config_store
         self.on_view = on_view
         self.on_edit = on_edit
         self.on_convert = on_convert
@@ -35,6 +43,7 @@ class QuotesTab(ttk.Frame):
         self._active_map: Dict[str, Cotizacion] = {}
         self._completed_map: Dict[str, Cotizacion] = {}
         self._selected_tree: Optional[ttk.Treeview] = None
+        self._action_buttons: List[ttk.Button] = []
 
         self.fecha_inicio_var = tk.StringVar()
         self.fecha_fin_var = tk.StringVar()
@@ -122,6 +131,42 @@ class QuotesTab(ttk.Frame):
         ttk.Button(button_frame, text="Editar", command=self.edit_selected).pack(side=tk.LEFT, padx=4)
         ttk.Button(button_frame, text="Eliminar", command=self.delete_selected).pack(side=tk.LEFT, padx=4)
         ttk.Button(button_frame, text="Marcar como pedido", command=self.convert_selected).pack(side=tk.LEFT, padx=4)
+        self.export_pdf_btn = ttk.Button(
+            button_frame,
+            text="Exportar PDF",
+            command=self.export_selected_pdf,
+            state=tk.DISABLED,
+        )
+        self.export_pdf_btn.pack(side=tk.LEFT, padx=4)
+        self.export_csv_btn = ttk.Button(
+            button_frame,
+            text="Exportar Excel/CSV",
+            command=self.export_selected_csv,
+            state=tk.DISABLED,
+        )
+        self.export_csv_btn.pack(side=tk.LEFT, padx=4)
+        self.send_whatsapp_btn = ttk.Button(
+            button_frame,
+            text="Enviar por WhatsApp",
+            command=self.send_selected_whatsapp,
+            state=tk.DISABLED,
+        )
+        self.send_whatsapp_btn.pack(side=tk.LEFT, padx=4)
+        self.send_email_btn = ttk.Button(
+            button_frame,
+            text="Enviar por Correo",
+            command=self.send_selected_email,
+            state=tk.DISABLED,
+        )
+        self.send_email_btn.pack(side=tk.LEFT, padx=4)
+        self._action_buttons.extend(
+            [
+                self.export_pdf_btn,
+                self.export_csv_btn,
+                self.send_whatsapp_btn,
+                self.send_email_btn,
+            ]
+        )
 
         self.details = tk.Text(self, height=8, state=tk.DISABLED)
         self.details.grid(row=3, column=0, columnspan=2, sticky="nsew", padx=6, pady=6)
@@ -183,6 +228,7 @@ class QuotesTab(ttk.Frame):
         self.details.configure(state=tk.NORMAL)
         self.details.delete("1.0", tk.END)
         self.details.configure(state=tk.DISABLED)
+        self._update_action_buttons(False)
 
     # ------------------------------------------------------------------
     def clear_filters(self) -> None:
@@ -204,6 +250,12 @@ class QuotesTab(ttk.Frame):
         item = selection[0]
         mapping = self._active_map if tree is self.active_tree else self._completed_map
         return mapping.get(item)
+
+    # ------------------------------------------------------------------
+    def _update_action_buttons(self, enabled: bool) -> None:
+        state = tk.NORMAL if enabled else tk.DISABLED
+        for button in self._action_buttons:
+            button.configure(state=state)
 
     # ------------------------------------------------------------------
     def view_selected(self) -> None:
@@ -233,6 +285,62 @@ class QuotesTab(ttk.Frame):
             self.on_convert(quote)
 
     # ------------------------------------------------------------------
+    def export_selected_pdf(self) -> None:
+        quote = self.get_selected_quote()
+        if not quote:
+            return
+        directory = filedialog.askdirectory(parent=self) or ""
+        if not directory:
+            return
+        identity = self.config_store.get_identity()
+        path = export_quote_pdf(quote, identity, Path(directory))
+        messagebox.showinfo("Exportación", f"PDF generado en {path}", parent=self)
+
+    # ------------------------------------------------------------------
+    def export_selected_csv(self) -> None:
+        quote = self.get_selected_quote()
+        if not quote:
+            return
+        directory = filedialog.askdirectory(parent=self) or ""
+        if not directory:
+            return
+        path = export_quote_csv(quote, Path(directory))
+        messagebox.showinfo("Exportación", f"CSV generado en {path}", parent=self)
+
+    # ------------------------------------------------------------------
+    def send_selected_whatsapp(self) -> None:
+        quote = self.get_selected_quote()
+        if not quote:
+            return
+        try:
+            pdf_path = self._ensure_pdf(quote)
+            whatsapp_cfg = self.config_store.get_integrations().get("whatsapp", {})
+            send_whatsapp_placeholder(whatsapp_cfg, quote, pdf_path)
+            messagebox.showinfo("Envío", "Se generó la salida para WhatsApp.", parent=self)
+        except MessagingError as exc:
+            messagebox.showerror("Error al enviar", str(exc), parent=self)
+
+    # ------------------------------------------------------------------
+    def send_selected_email(self) -> None:
+        quote = self.get_selected_quote()
+        if not quote:
+            return
+        try:
+            pdf_path = self._ensure_pdf(quote)
+            email_cfg = self.config_store.get_integrations().get("email", {})
+            send_email_with_pdf(email_cfg, quote, pdf_path)
+            messagebox.showinfo("Envío", "Correo enviado correctamente.", parent=self)
+        except MessagingError as exc:
+            messagebox.showerror("Error al enviar", str(exc), parent=self)
+
+    # ------------------------------------------------------------------
+    def _ensure_pdf(self, quote: Cotizacion) -> Path:
+        stored_path = self.quote_store.path_for(quote.folio)
+        output_dir = stored_path.parent if stored_path.exists() else Path(tempfile.gettempdir())
+        identity = self.config_store.get_identity()
+        return export_quote_pdf(quote, identity, output_dir)
+
+    # ------------------------------------------------------------------
     def show_details(self) -> None:
         quote = self.get_selected_quote()
         self.details.configure(state=tk.NORMAL)
@@ -257,6 +365,7 @@ class QuotesTab(ttk.Frame):
     def _on_tree_select(self, tree: ttk.Treeview) -> None:
         self._selected_tree = tree
         self.show_details()
+        self._update_action_buttons(self.get_selected_quote() is not None)
 
     # ------------------------------------------------------------------
     @staticmethod

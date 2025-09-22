@@ -79,6 +79,8 @@ class ClientsStore:
             cliente.correo = correo
         if celular:
             cliente.celular = celular
+        if getattr(info, "rfc", ""):
+            cliente.rfc = info.rfc
 
         if extra:
             cliente.rfc = str(extra.get("rfc", cliente.rfc))
@@ -99,7 +101,26 @@ class ClientsStore:
         self.save()
 
     def list_clients(self) -> List[Cliente]:
-        return [Cliente.from_dict(payload) for payload in self.data.values()]
+        clientes = [Cliente.from_dict(payload) for payload in self.data.values()]
+        clientes.sort(key=lambda c: c.nombre.lower())
+        return clientes
+
+    def search(self, query: str) -> List[Cliente]:
+        query = query.strip().lower()
+        if not query:
+            return self.list_clients()
+        matches: List[Cliente] = []
+        for payload in self.data.values():
+            cliente = Cliente.from_dict(payload)
+            haystack = [
+                cliente.nombre.lower(),
+                cliente.correo.lower(),
+                cliente.celular.lower(),
+            ]
+            if any(query in value for value in haystack if value):
+                matches.append(cliente)
+        matches.sort(key=lambda c: c.nombre.lower())
+        return matches
 
     def register_quote(self, info: ClienteInfo, quote: Cotizacion) -> Cliente:
         cliente = self.upsert(info)

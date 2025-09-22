@@ -321,6 +321,7 @@ class ClientsTab(ttk.Frame):
             nombre=nombre,
             correo=correo,
             celular=celular,
+            rfc=self.rfc_var.get().strip(),
         )
         extra = {
             "rfc": self.rfc_var.get().strip(),

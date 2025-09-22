@@ -102,6 +102,7 @@ class InvoiceRequestDialog(tk.Toplevel):
             nombre=self.nombre_var.get().strip() or self.pedido.cliente.nombre,
             correo=self.correo_var.get().strip(),
             celular=self.telefono_var.get().strip(),
+            rfc=self.rfc_var.get().strip(),
         )
         extra = {
             "rfc": self.rfc_var.get().strip(),

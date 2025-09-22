@@ -37,7 +37,7 @@ class QuoteModal(tk.Toplevel):
     ) -> None:
         super().__init__(master)
         self.title("Resumen de cotización")
-        self.geometry("900x650")
+        self.geometry("1000x720")
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -61,57 +61,61 @@ class QuoteModal(tk.Toplevel):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
-        content = ttk.Frame(container)
-        content.grid(row=0, column=0, sticky="nsew", padx=12, pady=8)
         container.rowconfigure(0, weight=1)
         container.rowconfigure(1, weight=0)
         container.columnconfigure(0, weight=1)
 
-        canvas = tk.Canvas(content, highlightthickness=0)
-        v_scroll = ttk.Scrollbar(content, orient="vertical", command=canvas.yview)
-        scroll_frame = ttk.Frame(canvas)
-
-        scroll_frame.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=v_scroll.set)
-
-        canvas.grid(row=0, column=0, sticky="nsew")
-        v_scroll.grid(row=0, column=1, sticky="ns")
-        content.rowconfigure(0, weight=1)
+        content = ttk.Frame(container, padding=(16, 12))
+        content.grid(row=0, column=0, sticky="nsew")
         content.columnconfigure(0, weight=1)
+        content.rowconfigure(1, weight=1)
 
-        scroll_frame.columnconfigure(0, weight=1)
+        header = ttk.Frame(content)
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        for col in range(3):
+            header.columnconfigure(col, weight=1)
 
-        header = ttk.Frame(scroll_frame)
-        header.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        header.columnconfigure(1, weight=1)
+        header_items = [
+            ("Folio", self.quote.folio),
+            ("Fecha", self.quote.fecha),
+            ("Proyecto", self.quote.proyecto),
+            ("Cliente", self.quote.cliente.nombre),
+            ("Correo", self.quote.cliente.correo),
+            ("Celular", self.quote.cliente.celular),
+            ("Impresora", self.quote.impresora),
+            ("Tipo", self.quote.tipo),
+            ("Material", self.quote.material),
+        ]
 
-        ttk.Label(header, text=f"Folio: {self.quote.folio}", font=self._bold_font).grid(row=0, column=0, sticky="w")
-        ttk.Label(header, text=f"Fecha: {self.quote.fecha}").grid(row=0, column=1, sticky="w", padx=12)
-        ttk.Label(header, text=f"Proyecto: {self.quote.proyecto}").grid(row=1, column=0, sticky="w")
-        ttk.Label(header, text=f"Cliente: {self.quote.cliente.nombre}").grid(row=1, column=1, sticky="w", padx=12)
-        ttk.Label(header, text=f"Correo: {self.quote.cliente.correo}").grid(row=2, column=0, sticky="w")
-        ttk.Label(header, text=f"Celular: {self.quote.cliente.celular}").grid(row=2, column=1, sticky="w", padx=12)
-        ttk.Label(header, text=f"Impresora: {self.quote.impresora}").grid(row=3, column=0, sticky="w")
-        ttk.Label(header, text=f"Tipo: {self.quote.tipo}").grid(row=3, column=1, sticky="w", padx=12)
-        ttk.Label(header, text=f"Material: {self.quote.material}").grid(row=4, column=0, sticky="w")
+        for idx, (label, value) in enumerate(header_items):
+            row = idx // 3
+            col = idx % 3
+            cell = ttk.Frame(header, padding=4)
+            cell.grid(row=row, column=col, sticky="nsew")
+            ttk.Label(cell, text=label, font=self._bold_font, anchor="center").pack(fill=tk.X)
+            ttk.Label(
+                cell,
+                text=value or "-",
+                anchor="center",
+                justify="center",
+                wraplength=260,
+            ).pack(fill=tk.X, pady=(4, 0))
 
-        tree_frame = ttk.Frame(scroll_frame)
-        tree_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 8))
+        tree_frame = ttk.Frame(content)
+        tree_frame.grid(row=1, column=0, sticky="nsew")
         tree_frame.rowconfigure(0, weight=1)
         tree_frame.columnconfigure(0, weight=1)
-        scroll_frame.rowconfigure(1, weight=1)
 
-        columns = ("cantidad", "unitario", "total")
+        columns = ("pieza", "cantidad", "unitario", "total")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings")
+        self.tree.heading("pieza", text="Pieza")
         self.tree.heading("cantidad", text="Cantidad")
         self.tree.heading("unitario", text="Precio unitario")
         self.tree.heading("total", text="Total")
+        self.tree.column("pieza", width=280, anchor="w")
         self.tree.column("cantidad", width=100, anchor="center")
-        self.tree.column("unitario", width=150, anchor="e")
-        self.tree.column("total", width=150, anchor="e")
+        self.tree.column("unitario", width=160, anchor="e")
+        self.tree.column("total", width=160, anchor="e")
         self.tree.grid(row=0, column=0, sticky="nsew")
 
         scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
@@ -123,15 +127,15 @@ class QuoteModal(tk.Toplevel):
                 "",
                 tk.END,
                 values=(
+                    pieza.pieza.nombre,
                     pieza.pieza.cantidad,
                     _format_currency(pieza.total_unit, self.quote.moneda),
                     _format_currency(pieza.total_total, self.quote.moneda),
                 ),
-                text=pieza.pieza.nombre,
             )
 
-        summary = ttk.Frame(scroll_frame)
-        summary.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+        summary = ttk.Frame(content)
+        summary.grid(row=2, column=0, sticky="ew", pady=(12, 0))
         summary.columnconfigure(0, weight=1)
         summary.columnconfigure(1, weight=1)
         self._add_summary_row(summary, "Subtotal base", self.quote.subtotal_base)
@@ -143,20 +147,19 @@ class QuoteModal(tk.Toplevel):
         self._add_summary_row(summary, "IVA", self.quote.iva)
         self._add_summary_row(summary, "Total", self.quote.total, bold=True)
 
-        messaging = ttk.Frame(scroll_frame)
-        messaging.grid(row=3, column=0, sticky="ew", pady=(0, 12))
-        ttk.Button(messaging, text="Enviar por Email", command=self.send_email).pack(side=tk.LEFT, padx=4)
-        ttk.Button(messaging, text="Enviar por WhatsApp", command=self.send_whatsapp).pack(side=tk.LEFT, padx=4)
-
-        footer = ttk.Frame(container)
+        footer = ttk.Frame(container, padding=(16, 8))
         footer.grid(row=1, column=0, sticky="ew")
-        for button in (
-            ttk.Button(footer, text="Cancelar", command=self.destroy),
-            ttk.Button(footer, text="Guardar", command=self.save_quote),
-            ttk.Button(footer, text="Exportar Excel/CSV", command=self.export_csv),
-            ttk.Button(footer, text="Exportar PDF", command=self.export_pdf),
-        ):
-            button.pack(side="right", padx=8, pady=8)
+        footer_buttons = [
+            ("Enviar por Correo", self.send_email),
+            ("Enviar por WhatsApp", self.send_whatsapp),
+            ("Cancelar/Salir", self.destroy),
+            ("Guardar", self.save_quote),
+            ("Exportar Excel/CSV", self.export_csv),
+            ("Exportar PDF", self.export_pdf),
+        ]
+        for text, command in footer_buttons:
+            ttk.Button(footer, text=text, command=command).pack(side="right", padx=6)
+        footer.lift()
 
     def _add_summary_row(self, frame: ttk.Frame, label: str, value: float, bold: bool = False) -> None:
         row = frame.grid_size()[1]
@@ -188,18 +191,20 @@ class QuoteModal(tk.Toplevel):
         self.quote.cliente.nombre = cliente.nombre
         self.quote.cliente.correo = cliente.correo
         self.quote.cliente.celular = cliente.celular
+        self.quote.cliente.rfc = cliente.rfc
         self.saved_path = path
         messagebox.showinfo("Guardado", f"Cotización guardada en {path}", parent=self)
         if self.on_saved:
             self.on_saved(self.quote)
 
     def _ensure_pdf(self) -> Path:
+        output_dir: Path
         if self.saved_path:
-            pdf = self.saved_path.with_suffix(".pdf")
-            if pdf.exists():
-                return pdf
+            output_dir = self.saved_path.parent
+        else:
+            stored_path = self.quote_store.path_for(self.quote.folio)
+            output_dir = stored_path.parent if stored_path.exists() else Path(tempfile.gettempdir())
         identity = self.config_store.get_identity()
-        output_dir = self.saved_path.parent if self.saved_path else Path(tempfile.gettempdir())
         return export_quote_pdf(self.quote, identity, output_dir)
 
     def send_email(self) -> None:

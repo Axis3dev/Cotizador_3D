@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -23,16 +22,11 @@ class QuoteStore:
     def _quote_path(self, folio: str) -> Path:
         return self.directory / f"{folio}.json"
 
-    # ------------------------------------------------------------------
-    def generate_folio(self, fecha: datetime | None = None) -> str:
-        fecha = fecha or datetime.utcnow()
-        prefix = fecha.strftime("CTZ-%Y%m%d")
-        counter = 1
-        while True:
-            folio = f"{prefix}-{counter:03d}"
-            if not self._quote_path(folio).exists():
-                return folio
-            counter += 1
+    def path_for(self, folio: str) -> Path:
+        return self._quote_path(folio)
+
+    def exists(self, folio: str) -> bool:
+        return self._quote_path(folio).exists()
 
     # ------------------------------------------------------------------
     def save(self, quote: Cotizacion) -> Path:

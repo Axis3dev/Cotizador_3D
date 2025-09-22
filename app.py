@@ -71,6 +71,7 @@ class CotizadorApp(tk.Tk):
             self.notebook,
             self.quote_store,
             self.orders_store,
+            self.config_store,
             on_view=self.view_quote,
             on_edit=self.edit_quote,
             on_convert=self.convert_quote_to_order,
@@ -144,7 +145,7 @@ class CotizadorApp(tk.Tk):
             fecha_dt = datetime.fromisoformat(context.fecha)
         except ValueError:
             fecha_dt = datetime.utcnow()
-        folio = context.folio or self.quote_store.generate_folio(fecha_dt)
+        folio = context.folio or self.config_store.next_quote_folio(self.quote_store.exists)
 
         financial_raw = self.config_store.get_financials()
         financials = FinancialSettings(
@@ -231,7 +232,7 @@ class CotizadorApp(tk.Tk):
     # ------------------------------------------------------------------
     def convert_quote_to_order(self, quote: Cotizacion) -> None:
         fecha_estimada = self._ask_fecha_estimada()
-        folio = self.orders_store.generate_folio()
+        folio = self.config_store.next_order_folio(self.orders_store.exists)
         pedido = Pedido(
             folio=folio,
             folio_cotizacion=quote.folio,

@@ -6,7 +6,7 @@ import json
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 from models.impresora import Impresora, PrinterType
 from models.material import Material
@@ -67,6 +67,7 @@ DEFAULT_CONFIG: Dict[str, object] = {
             "mensaje_base": "Hola {cliente}, adjuntamos tu cotización {folio}.",
         },
     },
+    "folios": {"cotizaciones": 1, "pedidos": 1, "padding": 3},
 }
 
 
@@ -96,6 +97,8 @@ class ConfigStore:
         if "logo_path" not in identidad and identidad.get("logo"):
             identidad["logo_path"] = identidad.pop("logo")
             changed = True
+        if self._ensure_folio_defaults():
+            changed = True
         if changed:
             self.save()
 
@@ -104,6 +107,37 @@ class ConfigStore:
         self.data["version"] = datetime.utcnow().isoformat()
         with self.path.open("w", encoding="utf-8") as fh:
             json.dump(self.data, fh, indent=2, ensure_ascii=False)
+
+    # ------------------------------------------------------------------
+    def _ensure_folio_defaults(self) -> bool:
+        folios = self.data.setdefault("folios", {})
+        changed = False
+        defaults = {"cotizaciones": 1, "pedidos": 1, "padding": 3}
+        for key, default in defaults.items():
+            value = folios.get(key)
+            if not isinstance(value, int) or (key == "padding" and int(value) < 1):
+                folios[key] = int(default)
+                changed = True
+        return changed
+
+    def _next_folio(self, key: str, prefix: str, exists: Callable[[str], bool]) -> str:
+        self._ensure_folio_defaults()
+        folios = self.data.setdefault("folios", {})
+        padding = int(folios.get("padding", 3) or 3)
+        counter = int(folios.get(key, 1) or 1)
+        while True:
+            folio = f"{prefix} – {counter:0{padding}d}"
+            if not exists(folio):
+                folios[key] = counter + 1
+                self.save()
+                return folio
+            counter += 1
+
+    def next_quote_folio(self, exists: Callable[[str], bool]) -> str:
+        return self._next_folio("cotizaciones", "COT", exists)
+
+    def next_order_folio(self, exists: Callable[[str], bool]) -> str:
+        return self._next_folio("pedidos", "PED", exists)
 
     # ------------------------------------------------------------------
     def get_materials(self) -> List[Material]:

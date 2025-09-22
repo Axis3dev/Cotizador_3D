@@ -73,6 +73,7 @@ class ClienteInfo:
     nombre: str = ""
     correo: str = ""
     celular: str = ""
+    rfc: str = ""
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ClienteInfo":
@@ -81,6 +82,7 @@ class ClienteInfo:
             nombre=str(data.get("nombre", "")),
             correo=str(data.get("correo", "")),
             celular=str(data.get("celular", "")),
+            rfc=str(data.get("rfc", "")),
         )
 
     def to_dict(self) -> Dict[str, Any]:
