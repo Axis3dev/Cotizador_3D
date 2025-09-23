@@ -68,7 +68,7 @@ def compute_piece_base(
     precio_material = precio_material_override if precio_material_override is not None else material.precio_kg
     material_unit = masa_kg * max(precio_material, 0.0)
 
-    horas = max(pieza.horas_impresion, 0.0)
+    horas = max(pieza.tiempo_horas, 0.0)
     energia_unit = (max(impresora.potencia_w, 0.0) * horas / 1000.0) * max(
         financial.precio_kwh, 0.0
     )

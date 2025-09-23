@@ -12,6 +12,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 from models.cotizacion import Cotizacion
+from models.pieza import format_hours_minutes
 
 
 def _format_currency(value: float, moneda: str) -> str:
@@ -95,9 +96,10 @@ def export_quote_pdf(
     c.setFillColor(colors.black)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(50, y, "Pieza")
-    c.drawString(250, y, "Cantidad")
-    c.drawString(320, y, "Precio unitario")
-    c.drawString(430, y, "Total")
+    c.drawRightString(300, y, "Cantidad")
+    c.drawString(320, y, "Tiempo (h:mm)")
+    c.drawRightString(460, y, "Precio unitario")
+    c.drawRightString(520, y, "Total")
 
     y -= 24
     c.setFont("Helvetica", 10)
@@ -108,7 +110,8 @@ def export_quote_pdf(
             c.setFont("Helvetica", 10)
         c.drawString(50, y, pieza.pieza.nombre)
         c.drawRightString(300, y, str(pieza.pieza.cantidad))
-        c.drawRightString(400, y, _format_currency(pieza.total_unit, quote.moneda))
+        c.drawString(320, y, format_hours_minutes(pieza.pieza.horas, pieza.pieza.minutos))
+        c.drawRightString(460, y, _format_currency(pieza.total_unit, quote.moneda))
         c.drawRightString(520, y, _format_currency(pieza.total_total, quote.moneda))
         y -= 16
 

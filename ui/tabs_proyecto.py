@@ -13,7 +13,12 @@ from models.cliente import Cliente, ClienteInfo
 from models.cotizacion import Cotizacion
 from models.impresora import Impresora, PrinterType
 from models.material import Material
-from models.pieza import Pieza
+from models.pieza import (
+    Pieza,
+    combine_hours_minutes,
+    format_hours_minutes,
+    split_hours_minutes,
+)
 from models.geometry import load_mesh
 from pricing import (
     FDMHeuristicSettings,
@@ -163,8 +168,9 @@ class PieceDialog(tk.Toplevel):
 
         self.nombre_var = tk.StringVar()
         self.cantidad_var = tk.StringVar(value="1")
-        self.masa_var = tk.StringVar(value="0.0")
-        self.horas_var = tk.StringVar(value="0.0")
+        self.horas_var = tk.StringVar(value="0")
+        self.minutos_var = tk.StringVar(value="0")
+        self.masa_var = tk.StringVar(value="0.000")
         self.costo_stl_var = tk.StringVar(value="0.0")
         self.extras_var = tk.StringVar(value="0.0")
         self.prep_var = tk.StringVar(value=f"{prep_min_default:.0f}")
@@ -188,8 +194,15 @@ class PieceDialog(tk.Toplevel):
         LabeledEntry(frame, "Cantidad", self.cantidad_var, validate="int").grid(row=1, column=0, sticky="w")
         ttk.Button(frame, text="Cargar STL", command=self.on_load_stl).grid(row=1, column=1, sticky="w")
 
-        LabeledEntry(frame, "Masa (g)", self.masa_var, validate="float").grid(row=2, column=0, sticky="w")
-        LabeledEntry(frame, "Horas impresión", self.horas_var, validate="float").grid(row=2, column=1, sticky="w")
+        time_row = ttk.Frame(frame)
+        time_row.grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+        self.horas_entry = LabeledEntry(time_row, "Horas", self.horas_var, validate="int", width=6)
+        self.horas_entry.pack(side=tk.LEFT, padx=(0, 12))
+        self.minutos_entry = LabeledEntry(time_row, "Minutos", self.minutos_var, validate="int", width=6)
+        self.minutos_entry.pack(side=tk.LEFT, padx=(0, 12))
+        self.masa_entry = LabeledEntry(time_row, "Masa (g)", self.masa_var, validate="float", width=10)
+        self.masa_entry.pack(side=tk.LEFT, padx=(0, 12))
+        self.masa_entry.entry.bind("<FocusOut>", self._format_mass)
 
         LabeledEntry(frame, "Costo STL", self.costo_stl_var, validate="float").grid(row=3, column=0, sticky="w")
         LabeledEntry(frame, "Extras", self.extras_var, validate="float").grid(row=3, column=1, sticky="w")
@@ -209,6 +222,29 @@ class PieceDialog(tk.Toplevel):
         ttk.Button(button_frame, text="Aceptar", command=self.on_accept).pack(side=tk.LEFT, padx=4)
         ttk.Button(button_frame, text="Cancelar", command=self.on_cancel).pack(side=tk.LEFT, padx=4)
 
+        self._set_time_fields(0.0)
+        self._format_mass()
+
+    def _set_mass(self, mass: float) -> None:
+        mass = max(mass, 0.0)
+        self.masa_var.set(f"{mass:.3f}")
+
+    def _format_mass(self, *_: object) -> None:
+        value = self.masa_var.get().strip()
+        if not value:
+            self.masa_var.set("0.000")
+            return
+        try:
+            mass = float(value)
+        except ValueError:
+            return
+        self.masa_var.set(f"{mass:.3f}")
+
+    def _set_time_fields(self, total_hours: float) -> None:
+        hours, minutes = split_hours_minutes(total_hours)
+        self.horas_var.set(str(hours))
+        self.minutos_var.set(f"{minutes:02d}")
+
     def on_load_stl(self) -> None:
         file_path = filedialog.askopenfilename(filetypes=[("Archivos STL", "*.stl")])
         if not file_path:
@@ -227,20 +263,20 @@ class PieceDialog(tk.Toplevel):
         self.bbox_label.set(f"Dimensiones: {bbox[0]:.1f} x {bbox[1]:.1f} x {bbox[2]:.1f} mm")
         status = "STL cerrado" if mesh.is_watertight else "STL no cerrado; revisar volumen"
         self.mesh_status_var.set(status)
-        self.masa_var.set(f"{masa:.2f}")
+        self._set_mass(masa)
 
         if self.tipo == "filamento":
             heuristics = FDMHeuristicSettings()
             masa_estimada, horas = estimate_fdm_mass_time(mesh, self.material.densidad_g_cm3, heuristics)
             if masa_estimada > 0:
-                self.masa_var.set(f"{masa_estimada:.2f}")
-            self.horas_var.set(f"{horas:.2f}")
+                self._set_mass(masa_estimada)
+            self._set_time_fields(horas)
         else:
             heuristics = ResinHeuristicSettings()
             masa_estimada, horas = estimate_resin_mass_time(mesh, self.material.densidad_g_cm3, heuristics)
             if masa_estimada > 0:
-                self.masa_var.set(f"{masa_estimada:.2f}")
-            self.horas_var.set(f"{horas:.2f}")
+                self._set_mass(masa_estimada)
+            self._set_time_fields(horas)
 
     def on_accept(self) -> None:
         try:
@@ -251,8 +287,22 @@ class PieceDialog(tk.Toplevel):
             messagebox.showerror("Dato inválido", "La cantidad debe ser un entero positivo.", parent=self)
             return
         try:
+            horas = int(self.horas_var.get() or 0)
+            minutos = int(self.minutos_var.get() or 0)
+        except ValueError:
+            messagebox.showerror("Dato inválido", "Horas y minutos deben ser enteros.", parent=self)
+            return
+        if horas < 0:
+            messagebox.showerror("Dato inválido", "Las horas deben ser cero o mayores.", parent=self)
+            return
+        if minutos < 0:
+            messagebox.showerror("Dato inválido", "Los minutos deben ser cero o mayores.", parent=self)
+            return
+        extra_hours, minutos = divmod(minutos, 60)
+        horas += extra_hours
+        tiempo_horas = combine_hours_minutes(horas, minutos)
+        try:
             masa = float(self.masa_var.get() or 0.0)
-            horas = float(self.horas_var.get() or 0.0)
             costo_stl = float(self.costo_stl_var.get() or 0.0)
             extras = float(self.extras_var.get() or 0.0)
             prep = float(self.prep_var.get() or 0.0)
@@ -264,11 +314,17 @@ class PieceDialog(tk.Toplevel):
         if not nombre:
             messagebox.showerror("Dato faltante", "Ingresa el nombre de la pieza.", parent=self)
             return
+        if masa < 0:
+            messagebox.showerror("Dato inválido", "La masa debe ser mayor o igual a cero.", parent=self)
+            return
+
         self._result = Pieza(
             nombre=nombre,
             cantidad=cantidad,
             masa_g=masa,
-            horas_impresion=horas,
+            horas=horas,
+            minutos=minutos,
+            tiempo_horas=tiempo_horas,
             costo_stl=costo_stl,
             extras=extras,
             prep_min=prep,
@@ -286,8 +342,8 @@ class PieceDialog(tk.Toplevel):
     def edit_piece(self, pieza: Pieza) -> None:
         self.nombre_var.set(pieza.nombre)
         self.cantidad_var.set(str(pieza.cantidad))
-        self.masa_var.set(f"{pieza.masa_g:.2f}")
-        self.horas_var.set(f"{pieza.horas_impresion:.2f}")
+        self._set_mass(pieza.masa_g)
+        self._set_time_fields(pieza.tiempo_horas)
         self.costo_stl_var.set(f"{pieza.costo_stl:.2f}")
         self.extras_var.set(f"{pieza.extras:.2f}")
         self.prep_var.set(f"{pieza.prep_min:.2f}")
@@ -431,17 +487,17 @@ class ProjectTab(ttk.Frame):
         piezas_frame.columnconfigure(0, weight=1)
         piezas_frame.rowconfigure(0, weight=1)
 
-        columns = ("pieza", "cantidad", "masa", "horas", "extras")
+        columns = ("pieza", "cantidad", "masa", "tiempo", "extras")
         self.piezas_tree = ttk.Treeview(piezas_frame, columns=columns, show="headings")
         self.piezas_tree.heading("pieza", text="Pieza")
         self.piezas_tree.heading("cantidad", text="Cantidad")
         self.piezas_tree.heading("masa", text="Masa (g)")
-        self.piezas_tree.heading("horas", text="Horas")
+        self.piezas_tree.heading("tiempo", text="Tiempo (h:mm)")
         self.piezas_tree.heading("extras", text="Extras")
         self.piezas_tree.column("pieza", width=200, anchor="w")
         self.piezas_tree.column("cantidad", width=80, anchor="center")
         self.piezas_tree.column("masa", width=100, anchor="center")
-        self.piezas_tree.column("horas", width=100, anchor="center")
+        self.piezas_tree.column("tiempo", width=120, anchor="center")
         self.piezas_tree.column("extras", width=120, anchor="center")
         self.piezas_tree.grid(row=0, column=0, sticky="nsew")
 
@@ -609,7 +665,7 @@ class ProjectTab(ttk.Frame):
                 pieza.nombre,
                 pieza.cantidad,
                 f"{pieza.masa_g:.2f}",
-                f"{pieza.horas_impresion:.2f}",
+                format_hours_minutes(pieza.horas, pieza.minutos),
                 f"{pieza.extras:.2f}",
             ),
         )

@@ -10,6 +10,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import mm
 from reportlab.pdfgen.canvas import Canvas
 
+from models.pieza import format_hours_minutes, split_hours_minutes
+
 
 def _draw_lines(canvas: Canvas, lines: Iterable[str], x: float, y: float, height: float) -> float:
     """Draw ``lines`` of text starting at ``x``, ``y`` and return the new ``y``."""
@@ -23,6 +25,34 @@ def _draw_lines(canvas: Canvas, lines: Iterable[str], x: float, y: float, height
 
 def _fmt_currency(value: float, currency: str) -> str:
     return f"{currency} ${value:,.2f}"
+
+
+def _time_parts(data: Dict[str, Any]) -> Tuple[int, int, float]:
+    """Return hours, minutes and decimal hours from piece/project dictionaries."""
+
+    tiempo = float(data.get("tiempo_horas") or data.get("horas_impresion") or 0.0)
+    horas_raw = data.get("horas")
+    minutos_raw = data.get("minutos")
+
+    def _to_int(value: Any) -> int:
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return 0
+
+    horas = _to_int(horas_raw)
+    minutos = _to_int(minutos_raw)
+
+    if horas_raw is None and minutos_raw is None and tiempo:
+        horas, minutos = split_hours_minutes(tiempo)
+    else:
+        minutos = max(minutos, 0)
+        extra_hours, minutos = divmod(minutos, 60)
+        horas = max(horas, 0) + extra_hours
+        if tiempo <= 0:
+            tiempo = horas + minutos / 60.0
+
+    return horas, minutos, tiempo
 
 
 def export_quote_to_pdf(file_path: str | Path, data: Dict[str, Any]) -> Path:
@@ -69,12 +99,20 @@ def export_quote_to_pdf(file_path: str | Path, data: Dict[str, Any]) -> Path:
     pdf.drawString(margin, y, "Proyecto")
     y -= 14
     pdf.setFont("Helvetica", 10)
+    horas, minutos, tiempo_decimal = _time_parts(proyecto)
+    tiempo_str = format_hours_minutes(horas, minutos)
+    tiempo_line = (
+        f"Tiempo impresión: {tiempo_str} (≈ {tiempo_decimal:.2f} h)"
+        if tiempo_decimal
+        else f"Tiempo impresión: {tiempo_str}"
+    )
+
     proyecto_lines = [
         f"Nombre: {proyecto.get('nombre', 'N/D')}",
         f"Tipo: {proyecto.get('tipo', 'N/D')} - Impresora: {proyecto.get('impresora', 'N/D')}",
         f"Material: {proyecto.get('material', 'N/D')}",
         f"Masa estimada: {proyecto.get('masa_g', 0):.2f} g",
-        f"Tiempo impresión: {proyecto.get('horas_impresion', 0):.2f} h",
+        tiempo_line,
     ]
     y = _draw_lines(pdf, proyecto_lines, margin, y, 12)
 

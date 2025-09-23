@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from models.cotizacion import Cotizacion
+from models.pieza import format_hours_minutes
 
 
 def export_quote_csv(quote: Cotizacion, directory: Path | None = None) -> Path:
@@ -31,12 +32,15 @@ def export_quote_csv(quote: Cotizacion, directory: Path | None = None) -> Path:
         writer.writerow(["Correo", quote.cliente.correo])
         writer.writerow(["Celular", quote.cliente.celular])
         writer.writerow([])
-        writer.writerow(["Pieza", "Cantidad", "Subtotal", "Total"])
+        writer.writerow(["Pieza", "Cantidad", "Tiempo (h:mm)", "Horas", "Minutos", "Subtotal", "Total"])
         for pieza in quote.piezas:
             writer.writerow(
                 [
                     pieza.pieza.nombre,
                     pieza.pieza.cantidad,
+                    format_hours_minutes(pieza.pieza.horas, pieza.pieza.minutos),
+                    pieza.pieza.horas,
+                    pieza.pieza.minutos,
                     f"{pieza.subtotal_total:.2f}",
                     f"{pieza.total_total:.2f}",
                 ]

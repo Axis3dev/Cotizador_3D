@@ -6,6 +6,34 @@ import csv
 from pathlib import Path
 from typing import Any, Dict
 
+from models.pieza import format_hours_minutes, split_hours_minutes
+
+
+def _time_parts(data: Dict[str, Any]) -> tuple[int, int, float]:
+    tiempo = float(data.get("tiempo_horas") or data.get("horas_impresion") or 0.0)
+    horas_raw = data.get("horas")
+    minutos_raw = data.get("minutos")
+
+    def _to_int(value: Any) -> int:
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return 0
+
+    horas = _to_int(horas_raw)
+    minutos = _to_int(minutos_raw)
+
+    if horas_raw is None and minutos_raw is None and tiempo:
+        horas, minutos = split_hours_minutes(tiempo)
+    else:
+        minutos = max(minutos, 0)
+        extra_hours, minutos = divmod(minutos, 60)
+        horas = max(horas, 0) + extra_hours
+        if tiempo <= 0:
+            tiempo = horas + minutos / 60.0
+
+    return horas, minutos, tiempo
+
 
 def export_quote_to_csv(file_path: str | Path, data: Dict[str, Any]) -> Path:
     """Export the quotation summary to ``file_path``."""
@@ -16,6 +44,9 @@ def export_quote_to_csv(file_path: str | Path, data: Dict[str, Any]) -> Path:
     costos = data.get("costos", {})
     currency = data.get("moneda", "MXN")
 
+    horas, minutos, tiempo_decimal = _time_parts(proyecto)
+    tiempo_formateado = format_hours_minutes(horas, minutos)
+
     rows = [
         ("Cliente", cliente.get("nombre", "")),
         ("Correo", cliente.get("correo", "")),
@@ -25,7 +56,10 @@ def export_quote_to_csv(file_path: str | Path, data: Dict[str, Any]) -> Path:
         ("Impresora", proyecto.get("impresora", "")),
         ("Material", proyecto.get("material", "")),
         ("Masa (g)", f"{proyecto.get('masa_g', 0):.2f}"),
-        ("Horas impresión", f"{proyecto.get('horas_impresion', 0):.2f}"),
+        ("Tiempo impresión (h:mm)", tiempo_formateado),
+        ("Horas impresión", horas),
+        ("Minutos impresión", minutos),
+        ("Tiempo impresión (decimal)", f"{tiempo_decimal:.2f}"),
         ("Min. mano de obra", f"{proyecto.get('minutos_mano_obra', 0):.2f}"),
         ("Horas supervisión", f"{proyecto.get('horas_supervision', 0):.2f}"),
         ("Costo STL", f"{currency} ${costos.get('costo_stl', 0.0):.2f}"),
