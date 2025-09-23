@@ -232,6 +232,8 @@ class CotizadorApp(tk.Tk):
     # ------------------------------------------------------------------
     def convert_quote_to_order(self, quote: Cotizacion) -> None:
         fecha_estimada = self._ask_fecha_estimada()
+        if fecha_estimada is None:
+            return
         folio = self.config_store.next_order_folio(self.orders_store.exists)
         pedido = Pedido(
             folio=folio,
@@ -271,33 +273,77 @@ class CotizadorApp(tk.Tk):
         dialog.title("Fecha estimada de entrega")
         dialog.transient(self)
         dialog.grab_set()
-        dialog.geometry("900x650")
+        dialog.geometry("380x220")
         dialog.resizable(False, False)
+        dialog.columnconfigure(0, weight=1)
+        dialog.rowconfigure(0, weight=1)
 
-        ttk.Label(dialog, text="Selecciona la fecha estimada de entrega:").grid(row=0, column=0, columnspan=2, padx=12, pady=8)
+        container = ttk.Frame(dialog, padding=16)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
 
+        ttk.Label(container, text="Fecha estimada de entrega:").grid(
+            row=0, column=0, sticky="w", pady=(0, 8)
+        )
+
+        today = datetime.utcnow().date()
         fecha_var = tk.StringVar()
-        date_entry = DateEntry(dialog, textvariable=fecha_var, width=12, date_pattern="yyyy-mm-dd")
-        date_entry.grid(row=1, column=0, columnspan=2, padx=12, pady=4)
+        date_entry = DateEntry(
+            container,
+            textvariable=fecha_var,
+            width=16,
+            date_pattern="yyyy-mm-dd",
+            mindate=today,
+        )
+        date_entry.grid(row=1, column=0, sticky="ew")
+        date_entry.set_date(today)
+
+        footer = ttk.Frame(dialog, padding=(8, 4))
+        footer.grid(row=1, column=0, sticky="ew")
 
         result: str | None = None
 
-        def aceptar() -> None:
+        def guardar() -> None:
             nonlocal result
-            value = fecha_var.get().strip()
-            if value:
-                try:
-                    result_date = datetime.fromisoformat(value).date()
-                    result = result_date.isoformat()
-                except ValueError:
-                    messagebox.showerror("Fecha inválida", "Usa el formato AAAA-MM-DD.", parent=dialog)
-                    return
-            else:
-                result = None
+            try:
+                selected = date_entry.get_date()
+            except Exception:
+                messagebox.showerror(
+                    "Fecha inválida",
+                    "Selecciona una fecha válida.",
+                    parent=dialog,
+                )
+                return
+            current_today = datetime.utcnow().date()
+            if selected < current_today:
+                messagebox.showerror(
+                    "Fecha inválida",
+                    "La fecha estimada debe ser hoy o posterior.",
+                    parent=dialog,
+                )
+                return
+            result = selected.isoformat()
             dialog.destroy()
 
-        ttk.Button(dialog, text="Aceptar", command=aceptar).grid(row=2, column=0, padx=12, pady=8)
-        ttk.Button(dialog, text="Sin fecha", command=dialog.destroy).grid(row=2, column=1, padx=12, pady=8)
+        ttk.Button(footer, text="Cancelar", command=dialog.destroy).pack(
+            side="right", padx=6
+        )
+        ttk.Button(footer, text="Guardar", command=guardar).pack(
+            side="right", padx=6
+        )
+
+        dialog.update_idletasks()
+        parent_x = self.winfo_rootx()
+        parent_y = self.winfo_rooty()
+        parent_w = self.winfo_width()
+        parent_h = self.winfo_height()
+        dialog_w = dialog.winfo_width()
+        dialog_h = dialog.winfo_height()
+        x = parent_x + (parent_w - dialog_w) // 2
+        y = parent_y + (parent_h - dialog_h) // 2
+        dialog.geometry(f"{dialog_w}x{dialog_h}+{x}+{y}")
+
+        date_entry.focus_set()
         dialog.wait_window(dialog)
         return result
 

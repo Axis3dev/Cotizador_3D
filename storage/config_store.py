@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -228,12 +229,10 @@ class ConfigStore:
         return identidad
 
     def update_identity(self, payload: Dict[str, object]) -> None:
-        logo_path = str(payload.get("logo_path", ""))
+        logo_path = str(payload.get("logo_path", "")).strip()
         if logo_path:
-            path = Path(logo_path).expanduser()
-            if not path.is_absolute():
-                path = (Path.cwd() / path).resolve()
-            payload["logo_path"] = path.as_posix()
+            abs_path = Path(os.path.abspath(os.path.expanduser(logo_path)))
+            payload["logo_path"] = abs_path.as_posix()
         self.data["identidad"] = payload
         self.save()
 
@@ -262,10 +261,7 @@ class ConfigStore:
     def resolve_path(self, path_str: str) -> Path:
         if not path_str:
             return Path()
-        path = Path(path_str).expanduser()
-        if not path.is_absolute():
-            path = Path.cwd() / path
-        return path
+        return Path(os.path.abspath(os.path.expanduser(path_str)))
 
 
 __all__ = ["ConfigStore", "DEFAULT_CONFIG", "CONFIG_PATH"]

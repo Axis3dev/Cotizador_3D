@@ -14,18 +14,7 @@ from reportlab.pdfgen import canvas
 from models.cliente import Cliente
 from models.cotizacion import Cotizacion
 from models.pedido import Pedido
-
-
-def _resolve_logo(identity: Dict[str, object]) -> Optional[Path]:
-    logo_path = identity.get("logo_path") or identity.get("logo")
-    if not logo_path:
-        return None
-    path = Path(str(logo_path)).expanduser()
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    return path if path.exists() else None
-
-
+from .branding import draw_logo, resolve_logo_path
 def export_invoice_request_pdf(
     pedido: Pedido,
     quote: Optional[Cotizacion],
@@ -42,13 +31,10 @@ def export_invoice_request_pdf(
     width, height = letter
 
     y = height - 40
-    logo = _resolve_logo(identity)
-    if logo:
-        try:
-            c.drawImage(str(logo), 40, y - 40, width=80, preserveAspectRatio=True, mask="auto")
-        except Exception as exc:  # pragma: no cover - reportlab
-            logging.getLogger(__name__).warning("No se pudo dibujar el logo en solicitud: %s", exc)
-    text_x = 140 if logo else 40
+    logo_drawn = draw_logo(c, identity, x_mm=15, y_mm=270, w_mm=45)
+    if not logo_drawn and resolve_logo_path(identity) is None:
+        logging.getLogger(__name__).info("Logo no disponible para la solicitud de facturación")
+    text_x = 140 if logo_drawn else 40
     c.setFont("Helvetica-Bold", 14)
     c.drawString(text_x, y, identity.get("nombre_comercial", "Cotizador 3D"))
     c.setFont("Helvetica", 10)

@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import logging
+import tempfile
 import tkinter as tk
 import tkinter.font as tkfont
+import webbrowser
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
+from openpyxl import Workbook
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
+from export.branding import add_logo_to_sheet, draw_logo, resolve_logo_path
 from models.impresora import Impresora
 from models.material import Material
 from storage.config_store import ConfigStore
-
-from PIL import Image, ImageTk
 
 
 class ConfigWindow(tk.Toplevel):
@@ -389,7 +395,7 @@ class ConfigWindow(tk.Toplevel):
             entry.grid(row=idx, column=1, sticky="ew", padx=8, pady=4)
             if key == "logo_path":
                 ttk.Button(frame, text="Buscar", command=lambda v=var: self._select_logo(v)).grid(row=idx, column=2, padx=4)
-                ttk.Button(frame, text="Probar logo", command=lambda v=var: self._preview_logo(v)).grid(row=idx, column=3, padx=4)
+                ttk.Button(frame, text="Probar logo", command=lambda v=var: self._test_logo(v)).grid(row=idx, column=3, padx=4)
             self.identity_vars[key] = var
 
         ttk.Label(frame, text="Políticas:").grid(row=len(fields), column=0, sticky="nw", padx=8, pady=4)
@@ -403,34 +409,61 @@ class ConfigWindow(tk.Toplevel):
     def _select_logo(self, var: tk.StringVar) -> None:
         path = filedialog.askopenfilename(parent=self, filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg")])
         if path:
-            var.set(Path(path).expanduser().as_posix())
+            absolute = Path(path).expanduser().resolve()
+            var.set(absolute.as_posix())
 
-    def _preview_logo(self, var: tk.StringVar) -> None:
+    def _test_logo(self, var: tk.StringVar) -> None:
         path_str = var.get().strip()
         if not path_str:
             messagebox.showwarning("Logo", "Primero selecciona una ruta de logo.", parent=self)
             return
-        logo_path = self.config_store.resolve_path(path_str)
-        if not logo_path.exists():
-            messagebox.showerror("Logo", f"No se encontró el archivo en {logo_path}", parent=self)
+        logo_path = resolve_logo_path(path_str)
+        if logo_path is None:
+            messagebox.showerror(
+                "Logo",
+                "El archivo de logo no existe o no es una imagen PNG/JPG.",
+                parent=self,
+            )
             return
+
+        temp_dir = Path(tempfile.mkdtemp(prefix="logo_prueba_"))
+        pdf_path = temp_dir / "logo_prueba.pdf"
+        xlsx_path = temp_dir / "logo_prueba.xlsx"
+
         try:
-            image = Image.open(logo_path)
-        except Exception as exc:
-            messagebox.showerror("Logo", f"No se pudo abrir el logo: {exc}", parent=self)
+            pdf_canvas = canvas.Canvas(str(pdf_path), pagesize=letter)
+            if not draw_logo(pdf_canvas, logo_path, x_mm=20, y_mm=270, w_mm=50):
+                raise RuntimeError("No se pudo dibujar el logo en el PDF de prueba.")
+            pdf_canvas.showPage()
+            pdf_canvas.save()
+
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Logo"
+            if not add_logo_to_sheet(sheet, logo_path):
+                raise RuntimeError("No se pudo insertar el logo en el Excel de prueba.")
+            workbook.save(xlsx_path)
+        except Exception as exc:  # pragma: no cover - depende de librerías externas
+            logging.getLogger(__name__).warning("Fallo la prueba de logo: %s", exc)
+            messagebox.showerror(
+                "Logo",
+                f"No se pudieron generar los archivos de prueba:\n{exc}",
+                parent=self,
+            )
             return
-        image.thumbnail((240, 240))
-        preview = tk.Toplevel(self)
-        preview.title("Vista previa del logo")
-        preview.geometry("900x650")
-        preview.resizable(False, False)
-        preview.transient(self)
-        preview.grab_set()
-        photo = ImageTk.PhotoImage(image)
-        label = ttk.Label(preview, image=photo)
-        label.image = photo  # type: ignore[attr-defined]
-        label.pack(padx=12, pady=12)
-        ttk.Button(preview, text="Cerrar", command=preview.destroy).pack(pady=(0, 12))
+
+        try:
+            webbrowser.open_new(pdf_path.as_uri())
+            webbrowser.open_new(xlsx_path.as_uri())
+        except Exception:
+            logging.getLogger(__name__).info("Los archivos de prueba se generaron en %s", temp_dir)
+
+        messagebox.showinfo(
+            "Logo",
+            "Se generaron archivos de prueba con el logo. Revisa la carpeta:\n"
+            f"{temp_dir}",
+            parent=self,
+        )
 
     def save_identity(self) -> None:
         payload = {key: var.get() for key, var in self.identity_vars.items()}

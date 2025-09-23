@@ -8,8 +8,8 @@ from typing import Dict, Iterable
 
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as XLImage
 
+from .branding import add_logo_to_sheet, resolve_logo_path
 
 def export_accounting_excel(
     rows: Iterable[Dict[str, float]],
@@ -28,21 +28,10 @@ def export_accounting_excel(
 
     current_row = 1
     if identity:
-        logo_path = identity.get("logo_path") or identity.get("logo")
-        if logo_path:
-            logo = Path(logo_path).expanduser()
-            if not logo.is_absolute():
-                logo = Path.cwd() / logo
-            if logo.exists():
-                try:
-                    img = XLImage(str(logo))
-                    img.width = min(img.width, 180)
-                    ws.add_image(img, "A1")
-                    current_row = 6
-                except Exception as exc:
-                    logging.getLogger(__name__).warning("No se pudo incrustar el logo en Excel: %s", exc)
-            else:
-                logging.getLogger(__name__).info("Logo no encontrado en %s, se omite en Excel", logo)
+        if add_logo_to_sheet(ws, identity, cell="A1"):
+            current_row = 6
+        elif resolve_logo_path(identity) is None:
+            logging.getLogger(__name__).info("Logo no disponible para el Excel contable")
     ws.cell(row=current_row, column=1, value="Filtros")
     current_row += 1
     for key, value in filters.items():
