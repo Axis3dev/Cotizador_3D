@@ -1,0 +1,80 @@
+{
+  "version": "2024-01-01T00:00:00",
+  "moneda": "MXN",
+  "electricidad": {
+    "kwh_precio": 3.0
+  },
+  "mano_obra": {
+    "costo_hora": 120.0,
+    "post_min": 20.0,
+    "supervision_h": 0.0
+  },
+  "porcentajes": {
+    "merma": 0.02,
+    "riesgo": 0.05,
+    "ganancia": 0.3,
+    "iva": 0.16
+  },
+  "materiales": {
+    "PLA": {
+      "densidad_g_cm3": 1.24,
+      "precio_kg": 350.0
+    },
+    "PETG": {
+      "densidad_g_cm3": 1.27,
+      "precio_kg": 420.0
+    },
+    "ABS": {
+      "densidad_g_cm3": 1.04,
+      "precio_kg": 480.0
+    }
+  },
+  "impresoras": [
+    {
+      "nombre": "Bambu Lab A1",
+      "tipo": "filamento",
+      "costo_equipo": 15000.0,
+      "vida_util_horas": 6000.0,
+      "potencia_w": 350.0
+    },
+    {
+      "nombre": "Anycubic Photon M3",
+      "tipo": "resina",
+      "costo_equipo": 12000.0,
+      "vida_util_horas": 4500.0,
+      "potencia_w": 120.0
+    }
+  ],
+  "identidad": {
+    "nombre_comercial": "Mi Taller 3D",
+    "rfc": "",
+    "direccion": "",
+    "telefono": "",
+    "logo_path": "assets/logo_negocio.png",
+    "politicas": "Válida 12 días a partir de la fecha.\nAnticipo del 50% para iniciar la producción."
+  },
+  "integraciones": {
+    "email": {
+      "host": "smtp.example.com",
+      "puerto": 587,
+      "usuario": "",
+      "password": "",
+      "remitente": "cotizaciones@example.com",
+      "usar_tls": true,
+      "mensaje": "Adjuntamos la cotización solicitada.",
+      "contador": "",
+      "mensaje_contador": "Adjuntamos la solicitud de facturación."
+    },
+    "whatsapp": {
+      "endpoint": "https://api.whatsapp.example.com/send",
+      "token": "",
+      "numero": "",
+      "mensaje_base": "Hola {cliente}, adjuntamos tu cotización {folio}."
+    }
+  },
+  "folios": {
+    "cotizaciones": 1,
+    "pedidos": 1,
+    "padding": 3
+  }
+}
