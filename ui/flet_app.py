@@ -11,6 +11,15 @@ from typing import Dict, List, Optional
 
 import flet as ft
 
+try:
+    from flet import icons as ICONS
+except Exception:  # pragma: no cover - compatibility shim
+    class _IC:
+        def __getattr__(self, name: str) -> str:
+            return name.lower()
+
+    ICONS = _IC()
+
 from models.cliente import Cliente, ClienteInfo
 from models.cotizacion import Cotizacion, PiezaCostos
 from models.impresora import Impresora, PrinterType
@@ -100,7 +109,7 @@ class Axis3DFletApp:
                 padding=8,
             )
         else:
-            logo_control = ft.Container(content=ft.Icon(ft.icons.PRINT), padding=8)
+            logo_control = ft.Container(content=ft.Icon(name=ICONS.PRINT), padding=8)
 
         header = ft.Container(
             bgcolor="#F2F2F2",
@@ -124,12 +133,12 @@ class Axis3DFletApp:
             extended=True,
             group_alignment=-0.8,
             destinations=[
-                ft.NavigationRailDestination(icon=ft.icons.DASHBOARD, label="Proyecto"),
-                ft.NavigationRailDestination(icon=ft.icons.DESCRIPTION, label="Cotizaciones"),
-                ft.NavigationRailDestination(icon=ft.icons.SHOPPING_CART, label="Pedidos"),
-                ft.NavigationRailDestination(icon=ft.icons.ANALYTICS, label="Contabilidad"),
-                ft.NavigationRailDestination(icon=ft.icons.PEOPLE, label="Clientes"),
-                ft.NavigationRailDestination(icon=ft.icons.SETTINGS, label="Configuración"),
+                ft.NavigationRailDestination(icon=ICONS.DASHBOARD, label="Proyecto"),
+                ft.NavigationRailDestination(icon=ICONS.DESCRIPTION, label="Cotizaciones"),
+                ft.NavigationRailDestination(icon=ICONS.SHOPPING_CART, label="Pedidos"),
+                ft.NavigationRailDestination(icon=ICONS.ANALYTICS, label="Contabilidad"),
+                ft.NavigationRailDestination(icon=ICONS.PEOPLE, label="Clientes"),
+                ft.NavigationRailDestination(icon=ICONS.SETTINGS, label="Configuración"),
             ],
             on_change=self._on_nav_change,
         )
@@ -245,12 +254,12 @@ class Axis3DFletApp:
 
         add_piece_button = ft.ElevatedButton(
             "Agregar pieza",
-            icon=ft.icons.ADD,
+            icon=ICONS.ADD,
             on_click=lambda _: self._open_piece_dialog(),
         )
         calcular_button = ft.FilledButton(
             "Calcular cotización",
-            icon=ft.icons.CALCULATE,
+            icon=ICONS.CALCULATE,
             on_click=lambda _: self._calculate_quote_from_state(),
         )
 
@@ -284,7 +293,7 @@ class Axis3DFletApp:
                     [
                         ft.ElevatedButton(
                             "Buscar cliente",
-                            icon=ft.icons.SEARCH,
+                            icon=ICONS.SEARCH,
                             on_click=lambda _: self._open_client_search(cliente_nombre, cliente_correo, cliente_cel),
                         ),
                     ]
@@ -370,12 +379,12 @@ class Axis3DFletApp:
                             ft.Row(
                                 [
                                     ft.IconButton(
-                                        icon=ft.icons.EDIT,
+                                        icon=ICONS.EDIT,
                                         tooltip="Editar",
                                         on_click=lambda _, index=idx: self._open_piece_dialog(index),
                                     ),
                                     ft.IconButton(
-                                        icon=ft.icons.DELETE,
+                                        icon=ICONS.DELETE,
                                         tooltip="Eliminar",
                                         on_click=lambda _, index=idx: self._delete_piece(index),
                                     ),
@@ -657,26 +666,26 @@ class Axis3DFletApp:
                 ft.TextButton("Cancelar", on_click=lambda _: self._close_dialog(dialog)),
                 ft.ElevatedButton(
                     "Guardar",
-                    icon=ft.icons.SAVE,
+                    icon=ICONS.SAVE,
                     on_click=lambda _: self._save_quote(cotizacion, dialog),
                 ),
                 ft.ElevatedButton(
                     "Exportar PDF",
-                    icon=ft.icons.PICTURE_AS_PDF,
+                    icon=ICONS.PICTURE_AS_PDF,
                     on_click=lambda _: self._export_quote_pdf(cotizacion),
                 ),
                 ft.ElevatedButton(
                     "Exportar Excel/CSV",
-                    icon=ft.icons.TABLE_VIEW,
+                    icon=ICONS.TABLE_VIEW,
                     on_click=lambda _: self._export_quote_excel(cotizacion),
                 ),
                 ft.IconButton(
-                    icon=ft.icons.EMAIL,
+                    icon=ICONS.EMAIL,
                     tooltip="Enviar por correo",
                     on_click=lambda _: self._send_quote_email(cotizacion),
                 ),
                 ft.IconButton(
-                    icon=ft.icons.CHAT,
+                    icon=ICONS.CHAT,
                     tooltip="Enviar por WhatsApp",
                     on_click=lambda _: self._send_quote_whatsapp(cotizacion),
                 ),
@@ -770,12 +779,12 @@ class Axis3DFletApp:
                             ft.Row(
                                 [
                                     ft.IconButton(
-                                        icon=ft.icons.VISIBILITY,
+                                        icon=ICONS.VISIBILITY,
                                         tooltip="Ver",
                                         on_click=lambda _, q=quote: self._open_quote_summary(q),
                                     ),
                                     ft.IconButton(
-                                        icon=ft.icons.SWAP_HORIZ,
+                                        icon=ICONS.SWAP_HORIZ,
                                         tooltip="Convertir a pedido",
                                         on_click=lambda _, q=quote: self._convert_to_order(q),
                                     ),
