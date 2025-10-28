@@ -233,7 +233,7 @@ class ConfigWindow(tk.Toplevel):
                 "",
                 tk.END,
                 values=(
-                    printer.tipo,
+                    printer.tipo.value,
                     f"{printer.costo_equipo:.2f}",
                     f"{printer.vida_util_horas:.1f}",
                     f"{printer.potencia_w:.1f}",
@@ -254,7 +254,9 @@ class ConfigWindow(tk.Toplevel):
         ttk.Entry(dialog, textvariable=nombre_var).grid(row=0, column=1, padx=6, pady=4)
 
         ttk.Label(dialog, text="Tipo:").grid(row=1, column=0, sticky="w", padx=6, pady=4)
-        tipo_var = tk.StringVar(value=printer.tipo if printer else "filamento")
+        tipo_var = tk.StringVar(
+            value=printer.tipo.value if printer else PrinterType.FILAMENTO.value
+        )
         ttk.Combobox(dialog, textvariable=tipo_var, values=["filamento", "resina"], state="readonly").grid(
             row=1, column=1, padx=6, pady=4
         )
@@ -288,7 +290,7 @@ class ConfigWindow(tk.Toplevel):
             nonlocal result
             result = Impresora(
                 nombre=nombre,
-                tipo=tipo_var.get() or "filamento",
+                tipo=PrinterType.from_value(tipo_var.get() or PrinterType.FILAMENTO.value),
                 costo_equipo=costo,
                 vida_util_horas=vida,
                 potencia_w=potencia,

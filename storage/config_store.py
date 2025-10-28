@@ -172,10 +172,11 @@ class ConfigStore:
             self.save()
 
     # ------------------------------------------------------------------
-    def get_printers(self, tipo: PrinterType | None = None) -> List[Impresora]:
+    def get_printers(self, tipo: PrinterType | str | None = None) -> List[Impresora]:
         impresoras = [Impresora.from_dict(p) for p in self.data.get("impresoras", [])]
-        if tipo:
-            impresoras = [p for p in impresoras if p.tipo == tipo]
+        if tipo is not None:
+            filtro = PrinterType.from_value(tipo)
+            impresoras = [p for p in impresoras if p.tipo == filtro]
         return impresoras
 
     # ------------------------------------------------------------------

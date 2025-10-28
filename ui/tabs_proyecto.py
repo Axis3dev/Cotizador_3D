@@ -535,8 +535,8 @@ class ProjectTab(ttk.Frame):
             self.material_precio_var.set(f"{material.precio_kg:.2f}")
 
     def refresh_printers(self) -> None:
-        tipo = self.tipo_var.get() or "filamento"
-        self.impresoras = self.config_store.get_printers(tipo=tipo)  # type: ignore[arg-type]
+        tipo = PrinterType.from_value(self.tipo_var.get() or PrinterType.FILAMENTO.value)
+        self.impresoras = self.config_store.get_printers(tipo=tipo)
         nombres = [p.nombre for p in self.impresoras]
         previous = self.impresora_var.get()
         self.impresora_combo.set_values(nombres)
@@ -700,7 +700,7 @@ class ProjectTab(ttk.Frame):
             folio=self.current_folio,
             proyecto=nombre,
             fecha=self.fecha_var.get(),
-            tipo=self.tipo_var.get() or "filamento",
+            tipo=PrinterType.from_value(self.tipo_var.get() or PrinterType.FILAMENTO.value),
             impresora=impresora,
             material=material,
             precio_material=precio_material,
