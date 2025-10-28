@@ -1,6 +1,6 @@
 # Cotizador 3D
 
-Aplicación de escritorio escrita en **Python 3.11+** con **Tkinter** que replica las fórmulas de la hoja de Excel original para cotizar impresiones 3D. Permite capturar proyectos completos con múltiples piezas, gestionar catálogos de materiales e impresoras, guardar cotizaciones, convertirlas en pedidos y generar reportes contables.
+Aplicación de escritorio y web escrita en **Python 3.11+** con **Flet** que replica las fórmulas de la hoja de Excel original para cotizar impresiones 3D. Permite capturar proyectos completos con múltiples piezas, gestionar catálogos de materiales e impresoras, guardar cotizaciones, convertirlas en pedidos y generar reportes contables.
 
 ## Características principales
 
@@ -23,6 +23,9 @@ Aplicación de escritorio escrita en **Python 3.11+** con **Tkinter** que replic
   - `scipy`
   - `reportlab`
   - `openpyxl`
+  - `Pillow`
+  - `tkcalendar`
+  - `flet`
 
 ## Instalación
 
